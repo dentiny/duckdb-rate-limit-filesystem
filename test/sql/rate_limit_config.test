@@ -3,7 +3,7 @@
 # group: [sql]
 
 # Require the extension
-require quack
+require rate_limit_filesystem
 
 # Test setting a quota with blocking mode
 query I

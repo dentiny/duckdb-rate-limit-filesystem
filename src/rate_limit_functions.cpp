@@ -31,8 +31,10 @@ static void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Ve
 }
 
 ScalarFunction GetRateLimitFsQuotaFunction() {
-	return ScalarFunction("rate_limit_fs_quota", {LogicalType::VARCHAR, LogicalType::BIGINT, LogicalType::VARCHAR},
-	                      LogicalType::VARCHAR, RateLimitFsQuotaFunction);
+	return ScalarFunction("rate_limit_fs_quota",
+	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT},
+	                       LogicalType {LogicalTypeId::VARCHAR}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsQuotaFunction);
 }
 
 //===--------------------------------------------------------------------===//
@@ -57,8 +59,9 @@ static void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Ve
 }
 
 ScalarFunction GetRateLimitFsBurstFunction() {
-	return ScalarFunction("rate_limit_fs_burst", {LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::VARCHAR,
-	                      RateLimitFsBurstFunction);
+	return ScalarFunction("rate_limit_fs_burst",
+	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsBurstFunction);
 }
 
 //===--------------------------------------------------------------------===//
@@ -83,8 +86,8 @@ static void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Ve
 }
 
 ScalarFunction GetRateLimitFsClearFunction() {
-	return ScalarFunction("rate_limit_fs_clear", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                      RateLimitFsClearFunction);
+	return ScalarFunction("rate_limit_fs_clear", {LogicalType {LogicalTypeId::VARCHAR}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsClearFunction);
 }
 
 //===--------------------------------------------------------------------===//
@@ -102,16 +105,16 @@ struct RateLimitConfigsData : public GlobalTableFunctionState {
 static unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunctionBindInput &input,
                                                      vector<LogicalType> &return_types, vector<string> &names) {
 	names.emplace_back("operation");
-	return_types.emplace_back(LogicalType::VARCHAR);
+	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
 
 	names.emplace_back("quota");
-	return_types.emplace_back(LogicalType::BIGINT);
+	return_types.emplace_back(LogicalType {LogicalTypeId::BIGINT});
 
 	names.emplace_back("mode");
-	return_types.emplace_back(LogicalType::VARCHAR);
+	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
 
 	names.emplace_back("burst");
-	return_types.emplace_back(LogicalType::BIGINT);
+	return_types.emplace_back(LogicalType {LogicalTypeId::BIGINT});
 
 	return nullptr;
 }
