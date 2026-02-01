@@ -2,14 +2,13 @@
 
 #include "mock_clock.hpp"
 #include "rate_limiter.hpp"
-#include "throttle_layer.hpp"
 
 using namespace duckdb;
 
 TEST_CASE("Rate limit - first request within burst passes immediately", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request should pass immediately
@@ -21,7 +20,7 @@ TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
 	// This means: 1 byte takes 10ms (1000ms / 100 bytes)
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request for 100 bytes (uses full burst)
@@ -37,7 +36,7 @@ TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 TEST_CASE("Rate limit - quota replenishes over time", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Use full burst
@@ -59,7 +58,7 @@ TEST_CASE("Rate limit - quota replenishes over time", "[rate]") {
 TEST_CASE("Rate limit - partial quota replenishment", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Use full burst
@@ -76,7 +75,7 @@ TEST_CASE("Rate limit - partial quota replenishment", "[rate]") {
 TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	TimePoint start_time = clock->Now();
@@ -97,7 +96,7 @@ TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 TEST_CASE("Rate limit - small requests accumulate correctly", "[rate]") {
 	auto clock = CreateMockClock();
 	// 100 bytes/sec, 100 byte burst
-	auto quota = Quota::PerSecond(100).AllowBurst(100);
+	Quota quota(100, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Make 10 requests of 10 bytes each (total 100 bytes = full burst)
@@ -111,53 +110,9 @@ TEST_CASE("Rate limit - small requests accumulate correctly", "[rate]") {
 	REQUIRE(wait_info.has_value());
 }
 
-TEST_CASE("Rate limit - ThrottleLayer respects rate limit over time", "[rate][throttle]") {
-	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	ThrottleLayer throttle(100, 100, clock);
-
-	TimePoint start_time = clock->Now();
-
-	// Make 3 requests of 100 bytes each
-	// First should pass immediately (uses burst)
-	// Second and third should advance time
-	for (int i = 0; i < 3; i++) {
-		auto result = throttle.Read("/test/file", 0, 100);
-		REQUIRE(result.success);
-	}
-
-	TimePoint end_time = clock->Now();
-
-	// Should have taken ~2 seconds (first uses burst, 2nd and 3rd need 1s each)
-	auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
-	REQUIRE(elapsed.count() >= 2);
-}
-
-TEST_CASE("Rate limit - API rate limiting works independently", "[rate][throttle][api]") {
-	auto clock = CreateMockClock();
-	// 10000 bytes/sec bandwidth, 10000 byte burst, 2 API calls/sec
-	ThrottleLayer throttle(10000, 10000, 2, clock);
-
-	TimePoint start_time = clock->Now();
-
-	// Make 4 small API calls
-	// First 2 should pass immediately (API burst = rate = 2)
-	// 3rd and 4th should need to wait
-	for (int i = 0; i < 4; i++) {
-		auto result = throttle.Read("/test/file", 0, 10);
-		REQUIRE(result.success);
-	}
-
-	TimePoint end_time = clock->Now();
-
-	// Should have taken ~1 second (first 2 use burst, 3rd and 4th need 0.5s each)
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	REQUIRE(elapsed.count() >= 1000);
-}
-
 TEST_CASE("Rate limit - emission interval calculation", "[rate][quota]") {
-	// 1000 bytes/sec -> 1ms per byte
-	auto quota = Quota::PerSecond(1000).AllowBurst(100);
+	// 1000 bytes/sec, 100 byte burst -> 1ms per byte
+	Quota quota(1000, 100);
 
 	auto emission_interval = quota.GetEmissionInterval();
 	auto expected = std::chrono::duration_cast<Duration>(std::chrono::milliseconds(1));
@@ -167,7 +122,7 @@ TEST_CASE("Rate limit - emission interval calculation", "[rate][quota]") {
 
 TEST_CASE("Rate limit - delay tolerance calculation", "[rate][quota]") {
 	// 1000 bytes/sec, 100 byte burst -> delay tolerance = 100ms
-	auto quota = Quota::PerSecond(1000).AllowBurst(100);
+	Quota quota(1000, 100);
 
 	auto delay_tolerance = quota.GetDelayTolerance();
 	auto expected = std::chrono::duration_cast<Duration>(std::chrono::milliseconds(100));
@@ -179,7 +134,7 @@ TEST_CASE("Rate limit - high bandwidth low burst scenario", "[rate]") {
 	auto clock = CreateMockClock();
 	// 10000 bytes/sec, 100 byte burst
 	// Can only do 100 byte requests at a time, but they process quickly
-	auto quota = Quota::PerSecond(10000).AllowBurst(100);
+	Quota quota(10000, 100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request passes
@@ -198,7 +153,7 @@ TEST_CASE("Rate limit - low bandwidth high burst scenario", "[rate]") {
 	auto clock = CreateMockClock();
 	// 10 bytes/sec, 1000 byte burst
 	// Can do large requests but they take a long time to replenish
-	auto quota = Quota::PerSecond(10).AllowBurst(1000);
+	Quota quota(10, 1000);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First large request passes (uses burst capacity)
@@ -216,7 +171,7 @@ TEST_CASE("Rate limit - low bandwidth high burst scenario", "[rate]") {
 TEST_CASE("Rate limit - concurrent-style requests with mock clock", "[rate]") {
 	auto clock = CreateMockClock();
 	// 1000 bytes/sec, 500 byte burst
-	auto quota = Quota::PerSecond(1000).AllowBurst(500);
+	Quota quota(1000, 500);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Request 1: 200 bytes
@@ -239,51 +194,12 @@ TEST_CASE("Rate limit - concurrent-style requests with mock clock", "[rate]") {
 	REQUIRE_FALSE(wait_info3.has_value());
 }
 
-TEST_CASE("Rate limit - ThrottleLayer builder with rate limiting", "[rate][throttle][builder]") {
+TEST_CASE("Rate limit - CreateRateLimiter helper function", "[rate]") {
 	auto clock = CreateMockClock();
 
-	auto throttle = ThrottleLayerBuilder().WithBandwidth(100).WithBurst(100).WithApiRate(10).WithClock(clock).Build();
+	auto limiter = CreateRateLimiter(100, 100, clock);
 
-	REQUIRE(throttle.GetBandwidth() == 100);
-	REQUIRE(throttle.GetBurst() == 100);
-	REQUIRE(throttle.GetApiRate() == 10);
-	REQUIRE(throttle.HasApiRateLimiting());
-}
-
-TEST_CASE("Rate limit - ThrottleLayer without API rate limiting", "[rate][throttle]") {
-	auto clock = CreateMockClock();
-
-	ThrottleLayer throttle(100, 100, clock);
-
-	REQUIRE(throttle.GetBandwidth() == 100);
-	REQUIRE(throttle.GetBurst() == 100);
-	REQUIRE(throttle.GetApiRate() == 0);
-	REQUIRE_FALSE(throttle.HasApiRateLimiting());
-}
-
-TEST_CASE("Rate limit - GetBandwidthRateLimiter returns valid limiter", "[rate][throttle]") {
-	auto clock = CreateMockClock();
-	ThrottleLayer throttle(100, 100, clock);
-
-	auto bw_limiter = throttle.GetBandwidthRateLimiter();
-	REQUIRE(bw_limiter != nullptr);
-	REQUIRE(bw_limiter->GetQuota().GetBandwidth() == 100);
-	REQUIRE(bw_limiter->GetQuota().GetBurst() == 100);
-}
-
-TEST_CASE("Rate limit - GetApiRateLimiter returns nullptr when not configured", "[rate][throttle]") {
-	auto clock = CreateMockClock();
-	ThrottleLayer throttle(100, 100, clock);
-
-	auto api_limiter = throttle.GetApiRateLimiter();
-	REQUIRE(api_limiter == nullptr);
-}
-
-TEST_CASE("Rate limit - GetApiRateLimiter returns valid limiter when configured", "[rate][throttle]") {
-	auto clock = CreateMockClock();
-	ThrottleLayer throttle(100, 100, 10, clock);
-
-	auto api_limiter = throttle.GetApiRateLimiter();
-	REQUIRE(api_limiter != nullptr);
-	REQUIRE(api_limiter->GetQuota().GetBandwidth() == 10);
+	REQUIRE(limiter != nullptr);
+	REQUIRE(limiter->GetQuota().GetBandwidth() == 100);
+	REQUIRE(limiter->GetQuota().GetBurst() == 100);
 }

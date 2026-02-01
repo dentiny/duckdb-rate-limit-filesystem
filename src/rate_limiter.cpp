@@ -9,20 +9,12 @@ namespace duckdb {
 //===--------------------------------------------------------------------===//
 
 Quota::Quota(idx_t bandwidth_p, idx_t burst_p) : bandwidth(bandwidth_p), burst(burst_p) {
-}
-
-Quota Quota::PerSecond(idx_t bandwidth_p) {
 	if (bandwidth_p == 0) {
 		throw InvalidInputException("bandwidth must be greater than 0");
 	}
-	return Quota(bandwidth_p, bandwidth_p);
-}
-
-Quota Quota::AllowBurst(idx_t burst_p) const {
 	if (burst_p == 0) {
 		throw InvalidInputException("burst must be greater than 0");
 	}
-	return Quota(bandwidth, burst_p);
 }
 
 idx_t Quota::GetBandwidth() const {
@@ -209,7 +201,7 @@ RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, idx_t n) {
 //===--------------------------------------------------------------------===//
 
 SharedRateLimiter CreateRateLimiter(idx_t bandwidth_p, idx_t burst_p, shared_ptr<BaseClock> clock_p) {
-	auto quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);
+	Quota quota(bandwidth_p, burst_p);
 	return RateLimiter::Direct(quota, clock_p);
 }
 

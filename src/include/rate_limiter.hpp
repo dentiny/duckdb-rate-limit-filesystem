@@ -22,13 +22,9 @@ shared_ptr<BaseClock> CreateDefaultClock();
 // Defines the bandwidth (bytes per second) and burst size (maximum bytes allowed at once).
 class Quota {
 public:
-	// Creates a per-second quota with the specified bandwidth.
-	// Throws InvalidInputException if bandwidth is 0.
-	static Quota PerSecond(idx_t bandwidth_p);
-
-	// Sets the burst size for this quota. Returns a modified quota with the specified burst size.
-	// Throws InvalidInputException if burst is 0.
-	Quota AllowBurst(idx_t burst_p) const;
+	// Creates a quota with the specified bandwidth and burst.
+	// Throws InvalidInputException if bandwidth or burst is 0.
+	Quota(idx_t bandwidth_p, idx_t burst_p);
 
 	// Returns the bandwidth in bytes per second.
 	idx_t GetBandwidth() const;
@@ -43,8 +39,6 @@ public:
 	Duration GetDelayTolerance() const;
 
 private:
-	Quota(idx_t bandwidth_p, idx_t burst_p);
-
 	idx_t bandwidth;
 	idx_t burst;
 };
