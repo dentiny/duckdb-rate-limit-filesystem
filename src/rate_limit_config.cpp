@@ -47,7 +47,7 @@ string RateLimitConfig::ObjectType() {
 
 void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMode mode) {
 	auto op = NormalizeOperation(operation);
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
 	auto it = configs.find(op);
 	if (it == configs.end()) {
@@ -79,7 +79,7 @@ void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMo
 
 void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 	auto op = NormalizeOperation(operation);
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
 	auto it = configs.find(op);
 	if (it == configs.end()) {
@@ -110,7 +110,7 @@ void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &operation) const {
 	auto op = StringUtil::Lower(operation);
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(op);
 	if (it == configs.end()) {
 		return nullptr;
@@ -120,7 +120,7 @@ const OperationConfig *RateLimitConfig::GetConfig(const string &operation) const
 
 SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &operation) {
 	auto op = StringUtil::Lower(operation);
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(op);
 	if (it == configs.end()) {
 		return nullptr;
@@ -136,7 +136,7 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 	vector<OperationConfig> result;
 	result.reserve(configs.size());
 
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	for (const auto &pair : configs) {
 		result.push_back(pair.second);
 	}
@@ -145,12 +145,12 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 
 void RateLimitConfig::ClearConfig(const string &operation) {
 	auto op = StringUtil::Lower(operation);
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	configs.erase(op);
 }
 
 void RateLimitConfig::ClearAll() {
-	lock_guard<mutex> guard(config_lock);
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	configs.clear();
 }
 

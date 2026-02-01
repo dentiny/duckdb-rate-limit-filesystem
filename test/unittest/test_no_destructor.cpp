@@ -1,4 +1,7 @@
-#include "catch.hpp"
+#include "catch/catch.hpp"
+
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/vector.hpp"
 #include "no_destructor.hpp"
 
 using namespace duckdb;
