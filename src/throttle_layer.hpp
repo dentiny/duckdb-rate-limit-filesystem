@@ -32,13 +32,13 @@ enum class ThrottleError {
  */
 class ThrottleException : public std::runtime_error {
  public:
-  explicit ThrottleException(ThrottleError error, const string& message)
-      : std::runtime_error(message), error_(error) {}
+  explicit ThrottleException(ThrottleError error_p, const string& message)
+      : std::runtime_error(message), error(error_p) {}
 
-  ThrottleError GetError() const { return error_; }
+  ThrottleError GetError() const { return error; }
 
  private:
-  ThrottleError error_;
+  ThrottleError error;
 };
 
 /**
@@ -130,9 +130,9 @@ class ThrottleLayer {
   /**
    * @brief Construct a new ThrottleLayer with bandwidth limiting only.
    *
-   * @param bandwidth Maximum bytes per second (must be > 0)
-   * @param burst Maximum bytes allowed at once (must be > 0)
-   * @param clock Optional custom clock implementation (for testing)
+   * @param bandwidth_p Maximum bytes per second (must be > 0)
+   * @param burst_p Maximum bytes allowed at once (must be > 0)
+   * @param clock_p Optional custom clock implementation (for testing)
    *
    * @throws InvalidInputException if bandwidth or burst is 0
    *
@@ -142,17 +142,17 @@ class ThrottleLayer {
    * ThrottleLayer throttle(10 * 1024, 10000 * 1024);
    * @endcode
    */
-  ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                shared_ptr<BaseClock> clock = nullptr);
+  ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p,
+                shared_ptr<BaseClock> clock_p = nullptr);
 
   /**
    * @brief Construct a new ThrottleLayer with both bandwidth and API rate
    *        limiting.
    *
-   * @param bandwidth Maximum bytes per second (must be > 0)
-   * @param burst Maximum bytes allowed at once (must be > 0)
-   * @param api_rate Maximum API calls per second (must be > 0)
-   * @param clock Optional custom clock implementation (for testing)
+   * @param bandwidth_p Maximum bytes per second (must be > 0)
+   * @param burst_p Maximum bytes allowed at once (must be > 0)
+   * @param api_rate_p Maximum API calls per second (must be > 0)
+   * @param clock_p Optional custom clock implementation (for testing)
    *
    * @throws InvalidInputException if any parameter is 0
    *
@@ -162,8 +162,8 @@ class ThrottleLayer {
    * ThrottleLayer throttle(10 * 1024, 10000 * 1024, 100);
    * @endcode
    */
-  ThrottleLayer(uint32_t bandwidth, uint32_t burst, uint32_t api_rate,
-                shared_ptr<BaseClock> clock = nullptr);
+  ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p, uint32_t api_rate_p,
+                shared_ptr<BaseClock> clock_p = nullptr);
 
   /**
    * @brief Copy constructor.
@@ -284,15 +284,15 @@ class ThrottleLayer {
 
  private:
   /// Configured bandwidth (bytes per second)
-  uint32_t bandwidth_;
+  uint32_t bandwidth;
   /// Configured burst size (bytes)
-  uint32_t burst_;
+  uint32_t burst;
   /// Configured API rate (calls per second), 0 if disabled
-  uint32_t api_rate_;
+  uint32_t api_rate;
   /// Shared rate limiter for bandwidth
-  SharedRateLimiter bandwidth_limiter_;
+  SharedRateLimiter bandwidth_limiter;
   /// Shared rate limiter for API calls (nullptr if disabled)
-  SharedRateLimiter api_limiter_;
+  SharedRateLimiter api_limiter;
 };
 
 /**
@@ -313,41 +313,41 @@ class ThrottleLayerBuilder {
  public:
   /**
    * @brief Set the bandwidth.
-   * @param bandwidth Bytes per second
+   * @param bandwidth_p Bytes per second
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithBandwidth(uint32_t bandwidth) {
-    bandwidth_ = bandwidth;
+  ThrottleLayerBuilder& WithBandwidth(uint32_t bandwidth_p) {
+    bandwidth = bandwidth_p;
     return *this;
   }
 
   /**
    * @brief Set the burst size.
-   * @param burst Maximum bytes at once
+   * @param burst_p Maximum bytes at once
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithBurst(uint32_t burst) {
-    burst_ = burst;
+  ThrottleLayerBuilder& WithBurst(uint32_t burst_p) {
+    burst = burst_p;
     return *this;
   }
 
   /**
    * @brief Set the API rate limit.
-   * @param api_rate Maximum API calls per second
+   * @param api_rate_p Maximum API calls per second
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithApiRate(uint32_t api_rate) {
-    api_rate_ = api_rate;
+  ThrottleLayerBuilder& WithApiRate(uint32_t api_rate_p) {
+    api_rate = api_rate_p;
     return *this;
   }
 
   /**
    * @brief Set a custom clock (for testing).
-   * @param clock Clock implementation
+   * @param clock_p Clock implementation
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithClock(shared_ptr<BaseClock> clock) {
-    clock_ = clock;
+  ThrottleLayerBuilder& WithClock(shared_ptr<BaseClock> clock_p) {
+    clock = clock_p;
     return *this;
   }
 
@@ -357,23 +357,23 @@ class ThrottleLayerBuilder {
    * @throws InvalidInputException if bandwidth or burst is not set or is 0
    */
   ThrottleLayer Build() const {
-    if (bandwidth_ == 0) {
+    if (bandwidth == 0) {
       throw InvalidInputException("bandwidth must be set and > 0");
     }
-    if (burst_ == 0) {
+    if (burst == 0) {
       throw InvalidInputException("burst must be set and > 0");
     }
-    if (api_rate_ > 0) {
-      return ThrottleLayer(bandwidth_, burst_, api_rate_, clock_);
+    if (api_rate > 0) {
+      return ThrottleLayer(bandwidth, burst, api_rate, clock);
     }
-    return ThrottleLayer(bandwidth_, burst_, clock_);
+    return ThrottleLayer(bandwidth, burst, clock);
   }
 
  private:
-  uint32_t bandwidth_ = 0;
-  uint32_t burst_ = 0;
-  uint32_t api_rate_ = 0;
-  shared_ptr<BaseClock> clock_ = nullptr;
+  uint32_t bandwidth = 0;
+  uint32_t burst = 0;
+  uint32_t api_rate = 0;
+  shared_ptr<BaseClock> clock = nullptr;
 };
 
 }  // namespace duckdb

@@ -15,28 +15,28 @@ namespace duckdb {
 class MockClock : public BaseClock {
  public:
   explicit MockClock(TimePoint initial_time = TimePoint{})
-      : current_time_(initial_time) {}
+      : current_time(initial_time) {}
 
   TimePoint Now() const override {
-    return current_time_;
+    return current_time;
   }
 
-  void SleepFor(Duration duration) const override {
-    current_time_ += duration;
+  void SleepFor(Duration duration_p) const override {
+    current_time += duration_p;
   }
 
   void SleepUntil(TimePoint time_point) const override {
-    if (time_point > current_time_) {
-      current_time_ = time_point;
+    if (time_point > current_time) {
+      current_time = time_point;
     }
   }
 
   /**
    * @brief Advance the mock clock by the specified duration.
-   * @param duration The duration to advance by
+   * @param duration_p The duration to advance by
    */
-  void Advance(Duration duration) {
-    current_time_ += duration;
+  void Advance(Duration duration_p) {
+    current_time += duration_p;
   }
 
   /**
@@ -44,11 +44,11 @@ class MockClock : public BaseClock {
    * @param time_point The time point to set
    */
   void SetTime(TimePoint time_point) {
-    current_time_ = time_point;
+    current_time = time_point;
   }
 
  private:
-  mutable TimePoint current_time_;
+  mutable TimePoint current_time;
 };
 
 /**

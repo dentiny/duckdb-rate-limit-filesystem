@@ -6,82 +6,82 @@
 
 namespace duckdb {
 
-ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             shared_ptr<BaseClock> clock)
-    : bandwidth_(bandwidth), burst_(burst), api_rate_(0), api_limiter_(nullptr) {
-  if (bandwidth == 0) {
+ThrottleLayer::ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p,
+                             shared_ptr<BaseClock> clock_p)
+    : bandwidth(bandwidth_p), burst(burst_p), api_rate(0), api_limiter(nullptr) {
+  if (bandwidth_p == 0) {
     throw InvalidInputException("bandwidth must be greater than 0");
   }
-  if (burst == 0) {
+  if (burst_p == 0) {
     throw InvalidInputException("burst must be greater than 0");
   }
 
-  auto quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
-  bandwidth_limiter_ = RateLimiter::Direct(quota, clock);
+  auto quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);
+  bandwidth_limiter = RateLimiter::Direct(quota, clock_p);
 }
 
-ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             uint32_t api_rate, shared_ptr<BaseClock> clock)
-    : bandwidth_(bandwidth), burst_(burst), api_rate_(api_rate) {
-  if (bandwidth == 0) {
+ThrottleLayer::ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p,
+                             uint32_t api_rate_p, shared_ptr<BaseClock> clock_p)
+    : bandwidth(bandwidth_p), burst(burst_p), api_rate(api_rate_p) {
+  if (bandwidth_p == 0) {
     throw InvalidInputException("bandwidth must be greater than 0");
   }
-  if (burst == 0) {
+  if (burst_p == 0) {
     throw InvalidInputException("burst must be greater than 0");
   }
-  if (api_rate == 0) {
+  if (api_rate_p == 0) {
     throw InvalidInputException("api_rate must be greater than 0");
   }
 
   // Create bandwidth rate limiter
-  auto bw_quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
-  bandwidth_limiter_ = RateLimiter::Direct(bw_quota, clock);
+  auto bw_quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);
+  bandwidth_limiter = RateLimiter::Direct(bw_quota, clock_p);
 
   // Create API rate limiter
   // For API rate limiting, burst = rate (each call is 1 unit, no burst concept)
-  auto api_quota = Quota::PerSecond(api_rate).AllowBurst(api_rate);
-  api_limiter_ = RateLimiter::Direct(api_quota, clock);
+  auto api_quota = Quota::PerSecond(api_rate_p).AllowBurst(api_rate_p);
+  api_limiter = RateLimiter::Direct(api_quota, clock_p);
 }
 
 ThrottleLayer::ThrottleLayer(const ThrottleLayer& other)
-    : bandwidth_(other.bandwidth_),
-      burst_(other.burst_),
-      api_rate_(other.api_rate_),
-      bandwidth_limiter_(other.bandwidth_limiter_),
-      api_limiter_(other.api_limiter_) {}
+    : bandwidth(other.bandwidth),
+      burst(other.burst),
+      api_rate(other.api_rate),
+      bandwidth_limiter(other.bandwidth_limiter),
+      api_limiter(other.api_limiter) {}
 
 ThrottleLayer& ThrottleLayer::operator=(const ThrottleLayer& other) {
   if (this != &other) {
-    bandwidth_ = other.bandwidth_;
-    burst_ = other.burst_;
-    api_rate_ = other.api_rate_;
-    bandwidth_limiter_ = other.bandwidth_limiter_;
-    api_limiter_ = other.api_limiter_;
+    bandwidth = other.bandwidth;
+    burst = other.burst;
+    api_rate = other.api_rate;
+    bandwidth_limiter = other.bandwidth_limiter;
+    api_limiter = other.api_limiter;
   }
   return *this;
 }
 
 ThrottleLayer::ThrottleLayer(ThrottleLayer&& other) noexcept
-    : bandwidth_(other.bandwidth_),
-      burst_(other.burst_),
-      api_rate_(other.api_rate_),
-      bandwidth_limiter_(std::move(other.bandwidth_limiter_)),
-      api_limiter_(std::move(other.api_limiter_)) {
-  other.bandwidth_ = 0;
-  other.burst_ = 0;
-  other.api_rate_ = 0;
+    : bandwidth(other.bandwidth),
+      burst(other.burst),
+      api_rate(other.api_rate),
+      bandwidth_limiter(std::move(other.bandwidth_limiter)),
+      api_limiter(std::move(other.api_limiter)) {
+  other.bandwidth = 0;
+  other.burst = 0;
+  other.api_rate = 0;
 }
 
 ThrottleLayer& ThrottleLayer::operator=(ThrottleLayer&& other) noexcept {
   if (this != &other) {
-    bandwidth_ = other.bandwidth_;
-    burst_ = other.burst_;
-    api_rate_ = other.api_rate_;
-    bandwidth_limiter_ = std::move(other.bandwidth_limiter_);
-    api_limiter_ = std::move(other.api_limiter_);
-    other.bandwidth_ = 0;
-    other.burst_ = 0;
-    other.api_rate_ = 0;
+    bandwidth = other.bandwidth;
+    burst = other.burst;
+    api_rate = other.api_rate;
+    bandwidth_limiter = std::move(other.bandwidth_limiter);
+    api_limiter = std::move(other.api_limiter);
+    other.bandwidth = 0;
+    other.burst = 0;
+    other.api_rate = 0;
   }
   return *this;
 }
@@ -113,17 +113,17 @@ ReadResult ThrottleLayer::Read(const string& path, int start_offset,
   uint32_t request_size = static_cast<uint32_t>(bytes_to_read);
 
   // Check if request exceeds burst capacity
-  if (request_size > burst_) {
+  if (request_size > burst) {
     stringstream oss;
-    oss << "burst size (" << burst_
+    oss << "burst size (" << burst
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
     return ReadResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
   }
 
   // Wait for API rate limit (if enabled)
-  if (api_limiter_) {
-    auto api_result = api_limiter_->UntilNReady(1);
+  if (api_limiter) {
+    auto api_result = api_limiter->UntilNReady(1);
     if (api_result == RateLimitResult::InsufficientCapacity) {
       return ReadResult::Error(ThrottleError::RateLimited,
                                "API rate limit exceeded");
@@ -131,17 +131,17 @@ ReadResult ThrottleLayer::Read(const string& path, int start_offset,
   }
 
   // Wait until bandwidth is available
-  auto result = bandwidth_limiter_->UntilNReady(request_size);
+  auto result = bandwidth_limiter->UntilNReady(request_size);
   if (result == RateLimitResult::InsufficientCapacity) {
     stringstream oss;
-    oss << "burst size (" << burst_
+    oss << "burst size (" << burst
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
     return ReadResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
   }
 
   // In a real implementation, we would perform the actual read here:
-  // return inner_operator_->Read(path, start_offset, bytes_to_read);
+  // return inner_operator->Read(path, start_offset, bytes_to_read);
   //
   // For this standalone implementation, we simulate success and
   // return the requested bytes as "read"
@@ -172,17 +172,17 @@ WriteResult ThrottleLayer::Write(const string& path, int bytes_to_write) {
   uint32_t request_size = static_cast<uint32_t>(bytes_to_write);
 
   // Check if request exceeds burst capacity
-  if (request_size > burst_) {
+  if (request_size > burst) {
     stringstream oss;
-    oss << "burst size (" << burst_
+    oss << "burst size (" << burst
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
     return WriteResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
   }
 
   // Wait for API rate limit (if enabled)
-  if (api_limiter_) {
-    auto api_result = api_limiter_->UntilNReady(1);
+  if (api_limiter) {
+    auto api_result = api_limiter->UntilNReady(1);
     if (api_result == RateLimitResult::InsufficientCapacity) {
       return WriteResult::Error(ThrottleError::RateLimited,
                                 "API rate limit exceeded");
@@ -190,17 +190,17 @@ WriteResult ThrottleLayer::Write(const string& path, int bytes_to_write) {
   }
 
   // Wait until bandwidth is available
-  auto result = bandwidth_limiter_->UntilNReady(request_size);
+  auto result = bandwidth_limiter->UntilNReady(request_size);
   if (result == RateLimitResult::InsufficientCapacity) {
     stringstream oss;
-    oss << "burst size (" << burst_
+    oss << "burst size (" << burst
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
     return WriteResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
   }
 
   // In a real implementation, we would perform the actual write here:
-  // return inner_operator_->Write(path, data);
+  // return inner_operator->Write(path, data);
   //
   // For this standalone implementation, we simulate success and
   // return the requested bytes as "written"
@@ -208,27 +208,27 @@ WriteResult ThrottleLayer::Write(const string& path, int bytes_to_write) {
 }
 
 uint32_t ThrottleLayer::GetBandwidth() const {
-  return bandwidth_;
+  return bandwidth;
 }
 
 uint32_t ThrottleLayer::GetBurst() const {
-  return burst_;
+  return burst;
 }
 
 uint32_t ThrottleLayer::GetApiRate() const {
-  return api_rate_;
+  return api_rate;
 }
 
 bool ThrottleLayer::HasApiRateLimiting() const {
-  return api_limiter_ != nullptr;
+  return api_limiter != nullptr;
 }
 
 SharedRateLimiter ThrottleLayer::GetBandwidthRateLimiter() const {
-  return bandwidth_limiter_;
+  return bandwidth_limiter;
 }
 
 SharedRateLimiter ThrottleLayer::GetApiRateLimiter() const {
-  return api_limiter_;
+  return api_limiter;
 }
 
 }  // namespace duckdb

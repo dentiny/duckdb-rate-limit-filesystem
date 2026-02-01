@@ -26,39 +26,39 @@ class Quota {
  public:
   /**
    * @brief Create a per-second quota.
-   * @param bandwidth Maximum bytes allowed per second (must be > 0)
+   * @param bandwidth_p Maximum bytes allowed per second (must be > 0)
    * @return Quota configured for per-second rate limiting
    * @throws InvalidInputException if bandwidth is 0
    */
-  static Quota PerSecond(uint32_t bandwidth) {
-    if (bandwidth == 0) {
+  static Quota PerSecond(uint32_t bandwidth_p) {
+    if (bandwidth_p == 0) {
       throw InvalidInputException("bandwidth must be greater than 0");
     }
-    return Quota(bandwidth, bandwidth);
+    return Quota(bandwidth_p, bandwidth_p);
   }
 
   /**
    * @brief Set the burst size for this quota.
-   * @param burst Maximum bytes allowed at once (must be > 0)
+   * @param burst_p Maximum bytes allowed at once (must be > 0)
    * @return Modified quota with the specified burst size
    * @throws InvalidInputException if burst is 0
    */
-  Quota AllowBurst(uint32_t burst) const {
-    if (burst == 0) {
+  Quota AllowBurst(uint32_t burst_p) const {
+    if (burst_p == 0) {
       throw InvalidInputException("burst must be greater than 0");
     }
-    return Quota(bandwidth_, burst);
+    return Quota(bandwidth, burst_p);
   }
 
   /**
    * @brief Get the bandwidth (bytes per second).
    */
-  uint32_t GetBandwidth() const { return bandwidth_; }
+  uint32_t GetBandwidth() const { return bandwidth; }
 
   /**
    * @brief Get the burst size.
    */
-  uint32_t GetBurst() const { return burst_; }
+  uint32_t GetBurst() const { return burst; }
 
   /**
    * @brief Calculate the emission interval (time between each byte).
@@ -67,7 +67,7 @@ class Quota {
   Duration GetEmissionInterval() const {
     // Time per byte = 1 second / bandwidth
     return std::chrono::duration_cast<Duration>(
-        std::chrono::seconds(1)) / bandwidth_;
+        std::chrono::seconds(1)) / bandwidth;
   }
 
   /**
@@ -77,15 +77,15 @@ class Quota {
   Duration GetDelayTolerance() const {
     // Delay tolerance = burst * emission_interval
     auto emission_interval = GetEmissionInterval();
-    return emission_interval * burst_;
+    return emission_interval * burst;
   }
 
  private:
-  Quota(uint32_t bandwidth, uint32_t burst)
-      : bandwidth_(bandwidth), burst_(burst) {}
+  Quota(uint32_t bandwidth_p, uint32_t burst_p)
+      : bandwidth(bandwidth_p), burst(burst_p) {}
 
-  uint32_t bandwidth_;
-  uint32_t burst_;
+  uint32_t bandwidth;
+  uint32_t burst;
 };
 
 /**
@@ -97,13 +97,13 @@ class Quota {
  */
 class RateLimiterState {
  public:
-  RateLimiterState() : tat_nanos_(0) {}
+  RateLimiterState() : tat_nanos(0) {}
 
   /**
    * @brief Get the current TAT as nanoseconds since epoch.
    */
   int64_t GetTatNanos() const {
-    return tat_nanos_.load(std::memory_order_acquire);
+    return tat_nanos.load(std::memory_order_acquire);
   }
 
   /**
@@ -113,14 +113,14 @@ class RateLimiterState {
    * @return true if the swap succeeded, false otherwise
    */
   bool CompareExchangeTat(int64_t& expected, int64_t desired) {
-    return tat_nanos_.compare_exchange_weak(
+    return tat_nanos.compare_exchange_weak(
         expected, desired,
         std::memory_order_release,
         std::memory_order_relaxed);
   }
 
  private:
-  atomic<int64_t> tat_nanos_;
+  atomic<int64_t> tat_nanos;
 };
 
 /**
@@ -159,25 +159,25 @@ class RateLimiter {
  public:
   /**
    * @brief Create a rate limiter with the specified quota.
-   * @param quota The rate limiting quota (bandwidth + burst)
-   * @param clock Optional clock implementation (defaults to system clock)
+   * @param quota_p The rate limiting quota (bandwidth + burst)
+   * @param clock_p Optional clock implementation (defaults to system clock)
    */
-  explicit RateLimiter(const Quota& quota,
-                       shared_ptr<BaseClock> clock = nullptr)
-      : quota_(quota),
-        clock_(clock ? clock : CreateDefaultClock()),
-        state_(make_uniq<RateLimiterState>()) {}
+  explicit RateLimiter(const Quota& quota_p,
+                       shared_ptr<BaseClock> clock_p = nullptr)
+      : quota(quota_p),
+        clock(clock_p ? clock_p : CreateDefaultClock()),
+        state(make_uniq<RateLimiterState>()) {}
 
   /**
    * @brief Create a direct rate limiter (alias for the constructor).
-   * @param quota The rate limiting quota
-   * @param clock Optional clock implementation
+   * @param quota_p The rate limiting quota
+   * @param clock_p Optional clock implementation
    * @return Shared pointer to the rate limiter
    */
   static shared_ptr<RateLimiter> Direct(
-      const Quota& quota,
-      shared_ptr<BaseClock> clock = nullptr) {
-    return make_shared_ptr<RateLimiter>(quota, clock);
+      const Quota& quota_p,
+      shared_ptr<BaseClock> clock_p = nullptr) {
+    return make_shared_ptr<RateLimiter>(quota_p, clock_p);
   }
 
   /**
@@ -188,9 +188,9 @@ class RateLimiter {
    */
   RateLimitResult Check(uint32_t n) const {
     if (n == 0) return RateLimitResult::Allowed;
-    if (n > quota_.GetBurst()) return RateLimitResult::InsufficientCapacity;
+    if (n > quota.GetBurst()) return RateLimitResult::InsufficientCapacity;
 
-    auto now = clock_->Now();
+    auto now = clock->Now();
     auto wait_info = CheckAt(now, n);
     
     if (wait_info && wait_info->wait_duration > Duration::zero()) {
@@ -207,10 +207,10 @@ class RateLimiter {
    */
   RateLimitResult UntilNReady(uint32_t n) {
     if (n == 0) return RateLimitResult::Allowed;
-    if (n > quota_.GetBurst()) return RateLimitResult::InsufficientCapacity;
+    if (n > quota.GetBurst()) return RateLimitResult::InsufficientCapacity;
 
     while (true) {
-      auto now = clock_->Now();
+      auto now = clock->Now();
       auto decision = TryAcquire(now, n);
       
       if (decision.allowed) {
@@ -219,7 +219,7 @@ class RateLimiter {
       
       // Wait until we can proceed
       if (decision.wait_info) {
-        clock_->SleepUntil(decision.wait_info->ready_at);
+        clock->SleepUntil(decision.wait_info->ready_at);
       }
     }
   }
@@ -232,12 +232,12 @@ class RateLimiter {
    */
   std::optional<WaitInfo> TryAcquireImmediate(uint32_t n) {
     if (n == 0) return std::nullopt;
-    if (n > quota_.GetBurst()) {
+    if (n > quota.GetBurst()) {
       // Return max wait to indicate insufficient capacity
       return WaitInfo{TimePoint::max(), Duration::max()};
     }
 
-    auto now = clock_->Now();
+    auto now = clock->Now();
     auto decision = TryAcquire(now, n);
     
     if (decision.allowed) {
@@ -249,12 +249,12 @@ class RateLimiter {
   /**
    * @brief Get the configured quota.
    */
-  const Quota& GetQuota() const { return quota_; }
+  const Quota& GetQuota() const { return quota; }
 
   /**
    * @brief Get the clock used by this rate limiter.
    */
-  const shared_ptr<BaseClock>& GetClock() const { return clock_; }
+  const shared_ptr<BaseClock>& GetClock() const { return clock; }
 
  private:
   struct AcquireDecision {
@@ -280,18 +280,18 @@ class RateLimiter {
    * @brief Check rate limit at a specific time point.
    */
   std::optional<WaitInfo> CheckAt(TimePoint now, uint32_t n) const {
-    auto emission_interval = quota_.GetEmissionInterval();
-    auto delay_tolerance = quota_.GetDelayTolerance();
+    auto emission_interval = quota.GetEmissionInterval();
+    auto delay_tolerance = quota.GetDelayTolerance();
     
     int64_t now_nanos = ToNanos(now);
-    int64_t tat_nanos = state_->GetTatNanos();
+    int64_t current_tat_nanos = state->GetTatNanos();
     
     // Calculate the increment for n bytes
     auto increment = emission_interval * n;
     int64_t increment_nanos = std::chrono::duration_cast<Duration>(increment).count();
     
     // Calculate the new TAT
-    int64_t new_tat_nanos = std::max(tat_nanos, now_nanos) + increment_nanos;
+    int64_t new_tat_nanos = std::max(current_tat_nanos, now_nanos) + increment_nanos;
     
     // Calculate the earliest time this request could complete
     int64_t delay_tolerance_nanos = 
@@ -313,8 +313,8 @@ class RateLimiter {
    * @brief Try to acquire rate limit at a specific time point.
    */
   AcquireDecision TryAcquire(TimePoint now, uint32_t n) {
-    auto emission_interval = quota_.GetEmissionInterval();
-    auto delay_tolerance = quota_.GetDelayTolerance();
+    auto emission_interval = quota.GetEmissionInterval();
+    auto delay_tolerance = quota.GetDelayTolerance();
     
     int64_t now_nanos = ToNanos(now);
     
@@ -325,10 +325,10 @@ class RateLimiter {
         std::chrono::duration_cast<Duration>(delay_tolerance).count();
     
     // Atomic CAS loop
-    int64_t tat_nanos = state_->GetTatNanos();
+    int64_t current_tat_nanos = state->GetTatNanos();
     while (true) {
       // Calculate the new TAT
-      int64_t new_tat_nanos = std::max(tat_nanos, now_nanos) + increment_nanos;
+      int64_t new_tat_nanos = std::max(current_tat_nanos, now_nanos) + increment_nanos;
       
       // Calculate the earliest time this request could complete
       int64_t earliest_nanos = new_tat_nanos - delay_tolerance_nanos;
@@ -342,16 +342,16 @@ class RateLimiter {
       }
       
       // Try to update the TAT
-      if (state_->CompareExchangeTat(tat_nanos, new_tat_nanos)) {
+      if (state->CompareExchangeTat(current_tat_nanos, new_tat_nanos)) {
         return AcquireDecision{true, std::nullopt};
       }
-      // CAS failed, tat_nanos has been updated with current value, retry
+      // CAS failed, current_tat_nanos has been updated with current value, retry
     }
   }
 
-  Quota quota_;
-  shared_ptr<BaseClock> clock_;
-  unique_ptr<RateLimiterState> state_;
+  Quota quota;
+  shared_ptr<BaseClock> clock;
+  unique_ptr<RateLimiterState> state;
 };
 
 /**
@@ -362,17 +362,17 @@ using SharedRateLimiter = shared_ptr<RateLimiter>;
 
 /**
  * @brief Create a direct rate limiter with the specified bandwidth and burst.
- * @param bandwidth Maximum bytes per second
- * @param burst Maximum bytes allowed at once
- * @param clock Optional clock implementation
+ * @param bandwidth_p Maximum bytes per second
+ * @param burst_p Maximum bytes allowed at once
+ * @param clock_p Optional clock implementation
  * @return Shared pointer to the rate limiter
  */
 inline SharedRateLimiter CreateRateLimiter(
-    uint32_t bandwidth,
-    uint32_t burst,
-    shared_ptr<BaseClock> clock = nullptr) {
-  auto quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
-  return RateLimiter::Direct(quota, clock);
+    uint32_t bandwidth_p,
+    uint32_t burst_p,
+    shared_ptr<BaseClock> clock_p = nullptr) {
+  auto quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);
+  return RateLimiter::Direct(quota, clock_p);
 }
 
 }  // namespace duckdb
