@@ -1,12 +1,15 @@
 #pragma once
 
-#include <algorithm>
-#include <atomic>
+#include "duckdb/common/algorithm.hpp"
+#include "duckdb/common/atomic.hpp"
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/mutex.hpp"
+#include "duckdb/common/shared_ptr.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+
 #include <cstdint>
-#include <memory>
-#include <mutex>
 #include <optional>
-#include <stdexcept>
 
 #include "base_clock.hpp"
 #include "default_clock.hpp"
@@ -25,11 +28,11 @@ class Quota {
    * @brief Create a per-second quota.
    * @param bandwidth Maximum bytes allowed per second (must be > 0)
    * @return Quota configured for per-second rate limiting
-   * @throws std::invalid_argument if bandwidth is 0
+   * @throws InvalidInputException if bandwidth is 0
    */
   static Quota PerSecond(uint32_t bandwidth) {
     if (bandwidth == 0) {
-      throw std::invalid_argument("bandwidth must be greater than 0");
+      throw InvalidInputException("bandwidth must be greater than 0");
     }
     return Quota(bandwidth, bandwidth);
   }
@@ -38,11 +41,11 @@ class Quota {
    * @brief Set the burst size for this quota.
    * @param burst Maximum bytes allowed at once (must be > 0)
    * @return Modified quota with the specified burst size
-   * @throws std::invalid_argument if burst is 0
+   * @throws InvalidInputException if burst is 0
    */
   Quota AllowBurst(uint32_t burst) const {
     if (burst == 0) {
-      throw std::invalid_argument("burst must be greater than 0");
+      throw InvalidInputException("burst must be greater than 0");
     }
     return Quota(bandwidth_, burst);
   }
@@ -117,7 +120,7 @@ class RateLimiterState {
   }
 
  private:
-  std::atomic<int64_t> tat_nanos_;
+  atomic<int64_t> tat_nanos_;
 };
 
 /**
@@ -160,10 +163,10 @@ class RateLimiter {
    * @param clock Optional clock implementation (defaults to system clock)
    */
   explicit RateLimiter(const Quota& quota,
-                       std::shared_ptr<BaseClock> clock = nullptr)
+                       shared_ptr<BaseClock> clock = nullptr)
       : quota_(quota),
         clock_(clock ? clock : CreateDefaultClock()),
-        state_(std::make_unique<RateLimiterState>()) {}
+        state_(make_uniq<RateLimiterState>()) {}
 
   /**
    * @brief Create a direct rate limiter (alias for the constructor).
@@ -171,10 +174,10 @@ class RateLimiter {
    * @param clock Optional clock implementation
    * @return Shared pointer to the rate limiter
    */
-  static std::shared_ptr<RateLimiter> Direct(
+  static shared_ptr<RateLimiter> Direct(
       const Quota& quota,
-      std::shared_ptr<BaseClock> clock = nullptr) {
-    return std::make_shared<RateLimiter>(quota, clock);
+      shared_ptr<BaseClock> clock = nullptr) {
+    return make_shared_ptr<RateLimiter>(quota, clock);
   }
 
   /**
@@ -251,7 +254,7 @@ class RateLimiter {
   /**
    * @brief Get the clock used by this rate limiter.
    */
-  const std::shared_ptr<BaseClock>& GetClock() const { return clock_; }
+  const shared_ptr<BaseClock>& GetClock() const { return clock_; }
 
  private:
   struct AcquireDecision {
@@ -347,15 +350,15 @@ class RateLimiter {
   }
 
   Quota quota_;
-  std::shared_ptr<BaseClock> clock_;
-  std::unique_ptr<RateLimiterState> state_;
+  shared_ptr<BaseClock> clock_;
+  unique_ptr<RateLimiterState> state_;
 };
 
 /**
  * @brief Shared rate limiter type for thread-safe access across multiple
  *        threads/operations.
  */
-using SharedRateLimiter = std::shared_ptr<RateLimiter>;
+using SharedRateLimiter = shared_ptr<RateLimiter>;
 
 /**
  * @brief Create a direct rate limiter with the specified bandwidth and burst.
@@ -367,10 +370,9 @@ using SharedRateLimiter = std::shared_ptr<RateLimiter>;
 inline SharedRateLimiter CreateRateLimiter(
     uint32_t bandwidth,
     uint32_t burst,
-    std::shared_ptr<BaseClock> clock = nullptr) {
+    shared_ptr<BaseClock> clock = nullptr) {
   auto quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
   return RateLimiter::Direct(quota, clock);
 }
 
 }  // namespace duckdb
-

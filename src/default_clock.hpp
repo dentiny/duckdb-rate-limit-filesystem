@@ -2,6 +2,9 @@
 
 #include "base_clock.hpp"
 
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/thread.hpp"
+
 #include <thread>
 
 namespace duckdb {
@@ -31,9 +34,8 @@ class DefaultClock : public BaseClock {
  * @brief Create a default clock instance.
  * @return Shared pointer to a DefaultClock
  */
-inline std::shared_ptr<BaseClock> CreateDefaultClock() {
-  return std::make_shared<DefaultClock>();
+inline shared_ptr<BaseClock> CreateDefaultClock() {
+  return make_shared_ptr<DefaultClock>();
 }
 
 }  // namespace duckdb
-

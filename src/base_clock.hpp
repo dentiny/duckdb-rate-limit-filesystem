@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
-#include <memory>
+#include "duckdb/common/chrono.hpp"
+#include "duckdb/common/shared_ptr.hpp"
 
 namespace duckdb {
 
@@ -47,4 +47,3 @@ class BaseClock {
 };
 
 }  // namespace duckdb
-

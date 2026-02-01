@@ -2,6 +2,8 @@
 
 #include "base_clock.hpp"
 
+#include "duckdb/common/helper.hpp"
+
 namespace duckdb {
 
 /**
@@ -54,10 +56,9 @@ class MockClock : public BaseClock {
  * @param initial_time Optional initial time point
  * @return Shared pointer to a MockClock
  */
-inline std::shared_ptr<MockClock> CreateMockClock(
+inline shared_ptr<MockClock> CreateMockClock(
     TimePoint initial_time = TimePoint{}) {
-  return std::make_shared<MockClock>(initial_time);
+  return make_shared_ptr<MockClock>(initial_time);
 }
 
 }  // namespace duckdb
-

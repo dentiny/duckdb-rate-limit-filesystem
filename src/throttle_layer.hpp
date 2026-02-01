@@ -1,10 +1,13 @@
 #pragma once
 
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/shared_ptr.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/vector.hpp"
+
 #include <cstdint>
-#include <memory>
 #include <stdexcept>
-#include <string>
-#include <vector>
 
 #include "base_clock.hpp"
 #include "default_clock.hpp"
@@ -29,7 +32,7 @@ enum class ThrottleError {
  */
 class ThrottleException : public std::runtime_error {
  public:
-  explicit ThrottleException(ThrottleError error, const std::string& message)
+  explicit ThrottleException(ThrottleError error, const string& message)
       : std::runtime_error(message), error_(error) {}
 
   ThrottleError GetError() const { return error_; }
@@ -49,13 +52,13 @@ struct ReadResult {
   /// Number of bytes actually read
   size_t bytes_read;
   /// Error message if operation failed
-  std::string error_message;
+  string error_message;
 
   static ReadResult Success(size_t bytes) {
     return ReadResult{true, ThrottleError::None, bytes, ""};
   }
 
-  static ReadResult Error(ThrottleError err, const std::string& msg) {
+  static ReadResult Error(ThrottleError err, const string& msg) {
     return ReadResult{false, err, 0, msg};
   }
 };
@@ -71,13 +74,13 @@ struct WriteResult {
   /// Number of bytes actually written
   size_t bytes_written;
   /// Error message if operation failed
-  std::string error_message;
+  string error_message;
 
   static WriteResult Success(size_t bytes) {
     return WriteResult{true, ThrottleError::None, bytes, ""};
   }
 
-  static WriteResult Error(ThrottleError err, const std::string& msg) {
+  static WriteResult Error(ThrottleError err, const string& msg) {
     return WriteResult{false, err, 0, msg};
   }
 };
@@ -131,7 +134,7 @@ class ThrottleLayer {
    * @param burst Maximum bytes allowed at once (must be > 0)
    * @param clock Optional custom clock implementation (for testing)
    *
-   * @throws std::invalid_argument if bandwidth or burst is 0
+   * @throws InvalidInputException if bandwidth or burst is 0
    *
    * @par Example:
    * @code{.cpp}
@@ -140,7 +143,7 @@ class ThrottleLayer {
    * @endcode
    */
   ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                std::shared_ptr<BaseClock> clock = nullptr);
+                shared_ptr<BaseClock> clock = nullptr);
 
   /**
    * @brief Construct a new ThrottleLayer with both bandwidth and API rate
@@ -151,7 +154,7 @@ class ThrottleLayer {
    * @param api_rate Maximum API calls per second (must be > 0)
    * @param clock Optional custom clock implementation (for testing)
    *
-   * @throws std::invalid_argument if any parameter is 0
+   * @throws InvalidInputException if any parameter is 0
    *
    * @par Example:
    * @code{.cpp}
@@ -160,7 +163,7 @@ class ThrottleLayer {
    * @endcode
    */
   ThrottleLayer(uint32_t bandwidth, uint32_t burst, uint32_t api_rate,
-                std::shared_ptr<BaseClock> clock = nullptr);
+                shared_ptr<BaseClock> clock = nullptr);
 
   /**
    * @brief Copy constructor.
@@ -215,7 +218,7 @@ class ThrottleLayer {
    * }
    * @endcode
    */
-  ReadResult Read(const std::string& path, int start_offset, int bytes_to_read);
+  ReadResult Read(const string& path, int start_offset, int bytes_to_read);
 
   /**
    * @brief Write data with bandwidth and API rate throttling.
@@ -240,7 +243,7 @@ class ThrottleLayer {
    * }
    * @endcode
    */
-  WriteResult Write(const std::string& path, int bytes_to_write);
+  WriteResult Write(const string& path, int bytes_to_write);
 
   /**
    * @brief Get the configured bandwidth.
@@ -343,7 +346,7 @@ class ThrottleLayerBuilder {
    * @param clock Clock implementation
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithClock(std::shared_ptr<BaseClock> clock) {
+  ThrottleLayerBuilder& WithClock(shared_ptr<BaseClock> clock) {
     clock_ = clock;
     return *this;
   }
@@ -351,14 +354,14 @@ class ThrottleLayerBuilder {
   /**
    * @brief Build the ThrottleLayer.
    * @return Configured ThrottleLayer instance
-   * @throws std::invalid_argument if bandwidth or burst is not set or is 0
+   * @throws InvalidInputException if bandwidth or burst is not set or is 0
    */
   ThrottleLayer Build() const {
     if (bandwidth_ == 0) {
-      throw std::invalid_argument("bandwidth must be set and > 0");
+      throw InvalidInputException("bandwidth must be set and > 0");
     }
     if (burst_ == 0) {
-      throw std::invalid_argument("burst must be set and > 0");
+      throw InvalidInputException("burst must be set and > 0");
     }
     if (api_rate_ > 0) {
       return ThrottleLayer(bandwidth_, burst_, api_rate_, clock_);
@@ -370,7 +373,7 @@ class ThrottleLayerBuilder {
   uint32_t bandwidth_ = 0;
   uint32_t burst_ = 0;
   uint32_t api_rate_ = 0;
-  std::shared_ptr<BaseClock> clock_ = nullptr;
+  shared_ptr<BaseClock> clock_ = nullptr;
 };
 
 }  // namespace duckdb

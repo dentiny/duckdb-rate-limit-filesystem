@@ -1,19 +1,19 @@
 #include "throttle_layer.hpp"
 
-#include <algorithm>
-#include <limits>
-#include <sstream>
+#include "duckdb/common/algorithm.hpp"
+#include "duckdb/common/limits.hpp"
+#include "duckdb/common/string.hpp"
 
 namespace duckdb {
 
 ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             std::shared_ptr<BaseClock> clock)
+                             shared_ptr<BaseClock> clock)
     : bandwidth_(bandwidth), burst_(burst), api_rate_(0), api_limiter_(nullptr) {
   if (bandwidth == 0) {
-    throw std::invalid_argument("bandwidth must be greater than 0");
+    throw InvalidInputException("bandwidth must be greater than 0");
   }
   if (burst == 0) {
-    throw std::invalid_argument("burst must be greater than 0");
+    throw InvalidInputException("burst must be greater than 0");
   }
 
   auto quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
@@ -21,16 +21,16 @@ ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
 }
 
 ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             uint32_t api_rate, std::shared_ptr<BaseClock> clock)
+                             uint32_t api_rate, shared_ptr<BaseClock> clock)
     : bandwidth_(bandwidth), burst_(burst), api_rate_(api_rate) {
   if (bandwidth == 0) {
-    throw std::invalid_argument("bandwidth must be greater than 0");
+    throw InvalidInputException("bandwidth must be greater than 0");
   }
   if (burst == 0) {
-    throw std::invalid_argument("burst must be greater than 0");
+    throw InvalidInputException("burst must be greater than 0");
   }
   if (api_rate == 0) {
-    throw std::invalid_argument("api_rate must be greater than 0");
+    throw InvalidInputException("api_rate must be greater than 0");
   }
 
   // Create bandwidth rate limiter
@@ -88,7 +88,7 @@ ThrottleLayer& ThrottleLayer::operator=(ThrottleLayer&& other) noexcept {
 
 ThrottleLayer::~ThrottleLayer() = default;
 
-ReadResult ThrottleLayer::Read(const std::string& path, int start_offset,
+ReadResult ThrottleLayer::Read(const string& path, int start_offset,
                                int bytes_to_read) {
   // Validate input
   if (bytes_to_read < 0) {
@@ -103,8 +103,8 @@ ReadResult ThrottleLayer::Read(const std::string& path, int start_offset,
 
   // Check if the request exceeds uint32_t max
   if (static_cast<uint64_t>(bytes_to_read) >
-      std::numeric_limits<uint32_t>::max()) {
-    std::ostringstream oss;
+      NumericLimits<uint32_t>::Maximum()) {
+    stringstream oss;
     oss << "request size (" << bytes_to_read
         << " bytes) exceeds throttle quota capacity";
     return ReadResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
@@ -114,7 +114,7 @@ ReadResult ThrottleLayer::Read(const std::string& path, int start_offset,
 
   // Check if request exceeds burst capacity
   if (request_size > burst_) {
-    std::ostringstream oss;
+    stringstream oss;
     oss << "burst size (" << burst_
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
@@ -133,7 +133,7 @@ ReadResult ThrottleLayer::Read(const std::string& path, int start_offset,
   // Wait until bandwidth is available
   auto result = bandwidth_limiter_->UntilNReady(request_size);
   if (result == RateLimitResult::InsufficientCapacity) {
-    std::ostringstream oss;
+    stringstream oss;
     oss << "burst size (" << burst_
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
@@ -148,7 +148,7 @@ ReadResult ThrottleLayer::Read(const std::string& path, int start_offset,
   return ReadResult::Success(static_cast<size_t>(bytes_to_read));
 }
 
-WriteResult ThrottleLayer::Write(const std::string& path, int bytes_to_write) {
+WriteResult ThrottleLayer::Write(const string& path, int bytes_to_write) {
   // Validate input
   if (bytes_to_write < 0) {
     return WriteResult::Error(ThrottleError::RequestExceedsBurst,
@@ -162,8 +162,8 @@ WriteResult ThrottleLayer::Write(const std::string& path, int bytes_to_write) {
 
   // Check if the request exceeds uint32_t max
   if (static_cast<uint64_t>(bytes_to_write) >
-      std::numeric_limits<uint32_t>::max()) {
-    std::ostringstream oss;
+      NumericLimits<uint32_t>::Maximum()) {
+    stringstream oss;
     oss << "request size (" << bytes_to_write
         << " bytes) exceeds throttle quota capacity";
     return WriteResult::Error(ThrottleError::RequestExceedsBurst, oss.str());
@@ -173,7 +173,7 @@ WriteResult ThrottleLayer::Write(const std::string& path, int bytes_to_write) {
 
   // Check if request exceeds burst capacity
   if (request_size > burst_) {
-    std::ostringstream oss;
+    stringstream oss;
     oss << "burst size (" << burst_
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
@@ -192,7 +192,7 @@ WriteResult ThrottleLayer::Write(const std::string& path, int bytes_to_write) {
   // Wait until bandwidth is available
   auto result = bandwidth_limiter_->UntilNReady(request_size);
   if (result == RateLimitResult::InsufficientCapacity) {
-    std::ostringstream oss;
+    stringstream oss;
     oss << "burst size (" << burst_
         << " bytes) is smaller than the request size (" << request_size
         << " bytes)";
