@@ -6,11 +6,13 @@
 
 namespace duckdb {
 
+namespace {
+
 //===--------------------------------------------------------------------===//
 // rate_limit_fs_quota(operation, value, mode)
 //===--------------------------------------------------------------------===//
 
-static void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
@@ -30,18 +32,11 @@ static void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Ve
 	    });
 }
 
-ScalarFunction GetRateLimitFsQuotaFunction() {
-	return ScalarFunction("rate_limit_fs_quota",
-	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT},
-	                       LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsQuotaFunction);
-}
-
 //===--------------------------------------------------------------------===//
 // rate_limit_fs_burst(operation, value)
 //===--------------------------------------------------------------------===//
 
-static void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
@@ -58,17 +53,11 @@ static void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Ve
 	    });
 }
 
-ScalarFunction GetRateLimitFsBurstFunction() {
-	return ScalarFunction("rate_limit_fs_burst",
-	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsBurstFunction);
-}
-
 //===--------------------------------------------------------------------===//
 // rate_limit_fs_clear(operation)
 //===--------------------------------------------------------------------===//
 
-static void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
@@ -85,11 +74,6 @@ static void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Ve
 	});
 }
 
-ScalarFunction GetRateLimitFsClearFunction() {
-	return ScalarFunction("rate_limit_fs_clear", {LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsClearFunction);
-}
-
 //===--------------------------------------------------------------------===//
 // rate_limit_fs_configs() - Table Function
 //===--------------------------------------------------------------------===//
@@ -102,8 +86,8 @@ struct RateLimitConfigsData : public GlobalTableFunctionState {
 	}
 };
 
-static unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunctionBindInput &input,
-                                                     vector<LogicalType> &return_types, vector<string> &names) {
+unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunctionBindInput &input,
+                                              vector<LogicalType> &return_types, vector<string> &names) {
 	names.emplace_back("operation");
 	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
 
@@ -119,8 +103,7 @@ static unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, Tab
 	return nullptr;
 }
 
-static unique_ptr<GlobalTableFunctionState> RateLimitConfigsInit(ClientContext &context,
-                                                                 TableFunctionInitInput &input) {
+unique_ptr<GlobalTableFunctionState> RateLimitConfigsInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto result = make_uniq<RateLimitConfigsData>();
 	auto config = RateLimitConfig::Get(context);
 	if (config) {
@@ -129,7 +112,7 @@ static unique_ptr<GlobalTableFunctionState> RateLimitConfigsInit(ClientContext &
 	return std::move(result);
 }
 
-static void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, DataChunk &output) {
+void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, DataChunk &output) {
 	auto &state = data.global_state->Cast<RateLimitConfigsData>();
 
 	idx_t count = 0;
@@ -146,6 +129,26 @@ static void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput 
 	}
 
 	output.SetCardinality(count);
+}
+
+} // namespace
+
+ScalarFunction GetRateLimitFsQuotaFunction() {
+	return ScalarFunction("rate_limit_fs_quota",
+	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT},
+	                       LogicalType {LogicalTypeId::VARCHAR}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsQuotaFunction);
+}
+
+ScalarFunction GetRateLimitFsBurstFunction() {
+	return ScalarFunction("rate_limit_fs_burst",
+	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::BIGINT}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsBurstFunction);
+}
+
+ScalarFunction GetRateLimitFsClearFunction() {
+	return ScalarFunction("rate_limit_fs_clear", {LogicalType {LogicalTypeId::VARCHAR}},
+	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsClearFunction);
 }
 
 TableFunction GetRateLimitFsConfigsFunction() {

@@ -158,7 +158,7 @@ SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &operatio
 vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 	vector<OperationConfig> result;
 	result.reserve(configs.size());
-	
+
 	lock_guard<mutex> guard(config_lock);
 	for (const auto &pair : configs) {
 		result.push_back(pair.second);
