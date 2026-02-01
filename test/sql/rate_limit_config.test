@@ -1,0 +1,89 @@
+# name: test/sql/rate_limit_config.test
+# description: test rate limit filesystem configuration functions
+# group: [sql]
+
+# Require the extension
+require quack
+
+# Test setting a quota with blocking mode
+query I
+SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+----
+read
+
+# Test setting a burst
+query I
+SELECT rate_limit_fs_burst('read', 5000000);
+----
+read
+
+# Test setting quota with non-blocking mode
+query I
+SELECT rate_limit_fs_quota('write', 500000, 'non_blocking');
+----
+write
+
+# Test setting quota with alternative mode name
+query I
+SELECT rate_limit_fs_quota('list', 100, 'non-blocking');
+----
+list
+
+# Test viewing all configs
+query ITIT
+SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
+----
+list	100	non_blocking	0
+read	1000000	blocking	5000000
+write	500000	non_blocking	0
+
+# Test setting burst-only config
+query I
+SELECT rate_limit_fs_burst('delete', 1000);
+----
+delete
+
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'delete';
+----
+delete	0	blocking	1000
+
+# Test clearing a specific config
+query I
+SELECT rate_limit_fs_clear('delete');
+----
+delete
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'delete';
+----
+0
+
+# Test clearing all configs
+query I
+SELECT rate_limit_fs_clear('*');
+----
+all
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+0
+
+# Test error: invalid mode
+statement error
+SELECT rate_limit_fs_quota('read', 1000, 'invalid_mode');
+----
+Invalid rate limit mode
+
+# Test error: negative quota
+statement error
+SELECT rate_limit_fs_quota('read', -100, 'blocking');
+----
+Quota value must be non-negative
+
+# Test error: negative burst
+statement error
+SELECT rate_limit_fs_burst('read', -100);
+----
+Burst value must be non-negative
