@@ -16,18 +16,18 @@ namespace duckdb {
  *          Thread-safe and suitable for production use.
  */
 class DefaultClock : public BaseClock {
- public:
-  TimePoint Now() const override {
-    return std::chrono::steady_clock::now();
-  }
+public:
+	TimePoint Now() const override {
+		return std::chrono::steady_clock::now();
+	}
 
-  void SleepFor(Duration duration) const override {
-    std::this_thread::sleep_for(duration);
-  }
+	void SleepFor(Duration duration) const override {
+		std::this_thread::sleep_for(duration);
+	}
 
-  void SleepUntil(TimePoint time_point) const override {
-    std::this_thread::sleep_until(time_point);
-  }
+	void SleepUntil(TimePoint time_point) const override {
+		std::this_thread::sleep_until(time_point);
+	}
 };
 
 /**
@@ -35,7 +35,7 @@ class DefaultClock : public BaseClock {
  * @return Shared pointer to a DefaultClock
  */
 inline shared_ptr<BaseClock> CreateDefaultClock() {
-  return make_shared_ptr<DefaultClock>();
+	return make_shared_ptr<DefaultClock>();
 }
 
-}  // namespace duckdb
+} // namespace duckdb

@@ -24,26 +24,26 @@ using Duration = std::chrono::nanoseconds;
  *          - Custom time sources for specialized use cases
  */
 class BaseClock {
- public:
-  virtual ~BaseClock() = default;
+public:
+	virtual ~BaseClock() = default;
 
-  /**
-   * @brief Get the current time point.
-   * @return Current time as a TimePoint
-   */
-  virtual TimePoint Now() const = 0;
+	/**
+	 * @brief Get the current time point.
+	 * @return Current time as a TimePoint
+	 */
+	virtual TimePoint Now() const = 0;
 
-  /**
-   * @brief Sleep for the specified duration.
-   * @param duration The duration to sleep for
-   */
-  virtual void SleepFor(Duration duration) const = 0;
+	/**
+	 * @brief Sleep for the specified duration.
+	 * @param duration The duration to sleep for
+	 */
+	virtual void SleepFor(Duration duration) const = 0;
 
-  /**
-   * @brief Sleep until the specified time point.
-   * @param time_point The time point to sleep until
-   */
-  virtual void SleepUntil(TimePoint time_point) const = 0;
+	/**
+	 * @brief Sleep until the specified time point.
+	 * @param time_point The time point to sleep until
+	 */
+	virtual void SleepUntil(TimePoint time_point) const = 0;
 };
 
-}  // namespace duckdb
+} // namespace duckdb
