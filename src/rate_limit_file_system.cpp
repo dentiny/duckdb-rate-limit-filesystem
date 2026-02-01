@@ -95,11 +95,8 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 }
 
 FileHandle &RateLimitFileSystem::GetInnerFileHandle(FileHandle &handle) {
-	auto *rate_limit_handle = dynamic_cast<RateLimitFileHandle *>(&handle);
-	if (rate_limit_handle) {
-		return rate_limit_handle->GetInnerHandle();
-	}
-	return handle;
+	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
+	return rate_limit_handle->GetInnerHandle();
 }
 
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,

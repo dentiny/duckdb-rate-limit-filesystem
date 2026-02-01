@@ -9,6 +9,7 @@
 
 namespace duckdb {
 
+// Forward declaration.
 class RateLimitFileSystem;
 
 // File handle that wraps another file handle and applies rate limiting.
