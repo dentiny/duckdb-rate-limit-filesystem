@@ -4,9 +4,9 @@
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/string.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/common/vector.hpp"
 
-#include <cstdint>
 #include <stdexcept>
 
 #include "base_clock.hpp"
@@ -47,11 +47,11 @@ struct ReadResult {
 	// Error code if operation failed
 	ThrottleError error;
 	// Number of bytes actually read
-	size_t bytes_read;
+	idx_t bytes_read;
 	// Error message if operation failed
 	string error_message;
 
-	static ReadResult Success(size_t bytes) {
+	static ReadResult Success(idx_t bytes) {
 		return ReadResult {true, ThrottleError::None, bytes, ""};
 	}
 
@@ -67,11 +67,11 @@ struct WriteResult {
 	// Error code if operation failed
 	ThrottleError error;
 	// Number of bytes actually written
-	size_t bytes_written;
+	idx_t bytes_written;
 	// Error message if operation failed
 	string error_message;
 
-	static WriteResult Success(size_t bytes) {
+	static WriteResult Success(idx_t bytes) {
 		return WriteResult {true, ThrottleError::None, bytes, ""};
 	}
 
@@ -122,7 +122,7 @@ public:
 	// Example:
 	//   // 10 KiB/s bandwidth, 10 MiB burst (no API rate limiting)
 	//   ThrottleLayer throttle(10 * 1024, 10000 * 1024);
-	ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p, shared_ptr<BaseClock> clock_p = nullptr);
+	ThrottleLayer(idx_t bandwidth_p, idx_t burst_p, shared_ptr<BaseClock> clock_p = nullptr);
 
 	// Constructs a ThrottleLayer with both bandwidth and API rate limiting.
 	// All parameters must be > 0, otherwise throws InvalidInputException.
@@ -130,7 +130,7 @@ public:
 	// Example:
 	//   // 10 KiB/s bandwidth, 10 MiB burst, 100 API calls/s
 	//   ThrottleLayer throttle(10 * 1024, 10000 * 1024, 100);
-	ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p, uint32_t api_rate_p, shared_ptr<BaseClock> clock_p = nullptr);
+	ThrottleLayer(idx_t bandwidth_p, idx_t burst_p, idx_t api_rate_p, shared_ptr<BaseClock> clock_p = nullptr);
 
 	// Copy constructor. Creates a new ThrottleLayer sharing the same rate limiter state.
 	// This means multiple copies will share the same bandwidth quota.
@@ -162,7 +162,7 @@ public:
 	//   if (!result.success) {
 	//       std::cerr << "Read failed: " << result.error_message << std::endl;
 	//   }
-	ReadResult Read(const string &path, int start_offset, int bytes_to_read);
+	ReadResult Read(const string &path, idx_t start_offset, idx_t bytes_to_read);
 
 	// Writes data with bandwidth and API rate throttling.
 	//
@@ -177,16 +177,16 @@ public:
 	//   if (!result.success) {
 	//       std::cerr << "Write failed: " << result.error_message << std::endl;
 	//   }
-	WriteResult Write(const string &path, int bytes_to_write);
+	WriteResult Write(const string &path, idx_t bytes_to_write);
 
 	// Returns the configured bandwidth in bytes per second.
-	uint32_t GetBandwidth() const;
+	idx_t GetBandwidth() const;
 
 	// Returns the configured burst size in bytes.
-	uint32_t GetBurst() const;
+	idx_t GetBurst() const;
 
 	// Returns the configured API rate limit (calls per second), or 0 if not configured.
-	uint32_t GetApiRate() const;
+	idx_t GetApiRate() const;
 
 	// Returns true if API rate limiting is enabled.
 	bool HasApiRateLimiting() const;
@@ -199,11 +199,11 @@ public:
 
 private:
 	// Configured bandwidth (bytes per second)
-	uint32_t bandwidth;
+	idx_t bandwidth;
 	// Configured burst size (bytes)
-	uint32_t burst;
+	idx_t burst;
 	// Configured API rate (calls per second), 0 if disabled
-	uint32_t api_rate;
+	idx_t api_rate;
 	// Shared rate limiter for bandwidth
 	SharedRateLimiter bandwidth_limiter;
 	// Shared rate limiter for API calls (nullptr if disabled)
@@ -222,19 +222,19 @@ private:
 class ThrottleLayerBuilder {
 public:
 	// Sets the bandwidth in bytes per second.
-	ThrottleLayerBuilder &WithBandwidth(uint32_t bandwidth_p) {
+	ThrottleLayerBuilder &WithBandwidth(idx_t bandwidth_p) {
 		bandwidth = bandwidth_p;
 		return *this;
 	}
 
 	// Sets the burst size (maximum bytes at once).
-	ThrottleLayerBuilder &WithBurst(uint32_t burst_p) {
+	ThrottleLayerBuilder &WithBurst(idx_t burst_p) {
 		burst = burst_p;
 		return *this;
 	}
 
 	// Sets the API rate limit (maximum API calls per second).
-	ThrottleLayerBuilder &WithApiRate(uint32_t api_rate_p) {
+	ThrottleLayerBuilder &WithApiRate(idx_t api_rate_p) {
 		api_rate = api_rate_p;
 		return *this;
 	}
@@ -260,9 +260,9 @@ public:
 	}
 
 private:
-	uint32_t bandwidth = 0;
-	uint32_t burst = 0;
-	uint32_t api_rate = 0;
+	idx_t bandwidth = 0;
+	idx_t burst = 0;
+	idx_t api_rate = 0;
 	shared_ptr<BaseClock> clock = nullptr;
 };
 

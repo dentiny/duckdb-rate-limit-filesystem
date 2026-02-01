@@ -8,28 +8,28 @@ namespace duckdb {
 // Quota
 //===--------------------------------------------------------------------===//
 
-Quota::Quota(uint32_t bandwidth_p, uint32_t burst_p) : bandwidth(bandwidth_p), burst(burst_p) {
+Quota::Quota(idx_t bandwidth_p, idx_t burst_p) : bandwidth(bandwidth_p), burst(burst_p) {
 }
 
-Quota Quota::PerSecond(uint32_t bandwidth_p) {
+Quota Quota::PerSecond(idx_t bandwidth_p) {
 	if (bandwidth_p == 0) {
 		throw InvalidInputException("bandwidth must be greater than 0");
 	}
 	return Quota(bandwidth_p, bandwidth_p);
 }
 
-Quota Quota::AllowBurst(uint32_t burst_p) const {
+Quota Quota::AllowBurst(idx_t burst_p) const {
 	if (burst_p == 0) {
 		throw InvalidInputException("burst must be greater than 0");
 	}
 	return Quota(bandwidth, burst_p);
 }
 
-uint32_t Quota::GetBandwidth() const {
+idx_t Quota::GetBandwidth() const {
 	return bandwidth;
 }
 
-uint32_t Quota::GetBurst() const {
+idx_t Quota::GetBurst() const {
 	return burst;
 }
 
@@ -71,7 +71,7 @@ shared_ptr<RateLimiter> RateLimiter::Direct(const Quota &quota_p, shared_ptr<Bas
 	return make_shared_ptr<RateLimiter>(quota_p, clock_p);
 }
 
-RateLimitResult RateLimiter::Check(uint32_t n) const {
+RateLimitResult RateLimiter::Check(idx_t n) const {
 	if (n == 0) {
 		return RateLimitResult::Allowed;
 	}
@@ -88,7 +88,7 @@ RateLimitResult RateLimiter::Check(uint32_t n) const {
 	return RateLimitResult::Allowed;
 }
 
-RateLimitResult RateLimiter::UntilNReady(uint32_t n) {
+RateLimitResult RateLimiter::UntilNReady(idx_t n) {
 	if (n == 0) {
 		return RateLimitResult::Allowed;
 	}
@@ -111,7 +111,7 @@ RateLimitResult RateLimiter::UntilNReady(uint32_t n) {
 	}
 }
 
-std::optional<WaitInfo> RateLimiter::TryAcquireImmediate(uint32_t n) {
+std::optional<WaitInfo> RateLimiter::TryAcquireImmediate(idx_t n) {
 	if (n == 0) {
 		return std::nullopt;
 	}
@@ -145,7 +145,7 @@ TimePoint RateLimiter::FromNanos(int64_t nanos) {
 	return TimePoint(Duration(nanos));
 }
 
-std::optional<WaitInfo> RateLimiter::CheckAt(TimePoint now, uint32_t n) const {
+std::optional<WaitInfo> RateLimiter::CheckAt(TimePoint now, idx_t n) const {
 	auto emission_interval = quota.GetEmissionInterval();
 	auto delay_tolerance = quota.GetDelayTolerance();
 
@@ -171,7 +171,7 @@ std::optional<WaitInfo> RateLimiter::CheckAt(TimePoint now, uint32_t n) const {
 	return std::nullopt;
 }
 
-RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, uint32_t n) {
+RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, idx_t n) {
 	auto emission_interval = quota.GetEmissionInterval();
 	auto delay_tolerance = quota.GetDelayTolerance();
 
@@ -208,7 +208,7 @@ RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, uint32_t n) 
 // Helper function
 //===--------------------------------------------------------------------===//
 
-SharedRateLimiter CreateRateLimiter(uint32_t bandwidth_p, uint32_t burst_p, shared_ptr<BaseClock> clock_p) {
+SharedRateLimiter CreateRateLimiter(idx_t bandwidth_p, idx_t burst_p, shared_ptr<BaseClock> clock_p) {
 	auto quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);
 	return RateLimiter::Direct(quota, clock_p);
 }

@@ -6,9 +6,9 @@
 #include "duckdb/common/helper.hpp"
 #include "duckdb/common/mutex.hpp"
 #include "duckdb/common/shared_ptr.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 
-#include <cstdint>
 #include <optional>
 
 #include "base_clock.hpp"
@@ -24,17 +24,17 @@ class Quota {
 public:
 	// Creates a per-second quota with the specified bandwidth.
 	// Throws InvalidInputException if bandwidth is 0.
-	static Quota PerSecond(uint32_t bandwidth_p);
+	static Quota PerSecond(idx_t bandwidth_p);
 
 	// Sets the burst size for this quota. Returns a modified quota with the specified burst size.
 	// Throws InvalidInputException if burst is 0.
-	Quota AllowBurst(uint32_t burst_p) const;
+	Quota AllowBurst(idx_t burst_p) const;
 
 	// Returns the bandwidth in bytes per second.
-	uint32_t GetBandwidth() const;
+	idx_t GetBandwidth() const;
 
 	// Returns the burst size in bytes.
-	uint32_t GetBurst() const;
+	idx_t GetBurst() const;
 
 	// Returns the emission interval (time between each byte).
 	Duration GetEmissionInterval() const;
@@ -43,10 +43,10 @@ public:
 	Duration GetDelayTolerance() const;
 
 private:
-	Quota(uint32_t bandwidth_p, uint32_t burst_p);
+	Quota(idx_t bandwidth_p, idx_t burst_p);
 
-	uint32_t bandwidth;
-	uint32_t burst;
+	idx_t bandwidth;
+	idx_t burst;
 };
 
 // Internal state for the GCRA rate limiter.
@@ -102,15 +102,15 @@ public:
 
 	// Checks if n bytes can be transmitted now without waiting.
 	// Returns Allowed if allowed, or InsufficientCapacity if n exceeds burst.
-	RateLimitResult Check(uint32_t n) const;
+	RateLimitResult Check(idx_t n) const;
 
 	// Waits until n bytes can be transmitted. The request must be <= burst size.
 	// Returns Allowed on success, InsufficientCapacity if n > burst.
-	RateLimitResult UntilNReady(uint32_t n);
+	RateLimitResult UntilNReady(idx_t n);
 
 	// Tries to acquire permission for n bytes without waiting.
 	// Returns WaitInfo if waiting is required, nullopt if allowed immediately.
-	std::optional<WaitInfo> TryAcquireImmediate(uint32_t n);
+	std::optional<WaitInfo> TryAcquireImmediate(idx_t n);
 
 	// Returns the configured quota.
 	const Quota &GetQuota() const;
@@ -131,10 +131,10 @@ private:
 	static TimePoint FromNanos(int64_t nanos);
 
 	// Checks rate limit at a specific time point.
-	std::optional<WaitInfo> CheckAt(TimePoint now, uint32_t n) const;
+	std::optional<WaitInfo> CheckAt(TimePoint now, idx_t n) const;
 
 	// Tries to acquire rate limit at a specific time point.
-	AcquireDecision TryAcquire(TimePoint now, uint32_t n);
+	AcquireDecision TryAcquire(TimePoint now, idx_t n);
 
 	Quota quota;
 	shared_ptr<BaseClock> clock;
@@ -145,6 +145,6 @@ private:
 using SharedRateLimiter = shared_ptr<RateLimiter>;
 
 // Creates a shared rate limiter with the specified bandwidth, burst, and optional clock.
-SharedRateLimiter CreateRateLimiter(uint32_t bandwidth_p, uint32_t burst_p, shared_ptr<BaseClock> clock_p = nullptr);
+SharedRateLimiter CreateRateLimiter(idx_t bandwidth_p, idx_t burst_p, shared_ptr<BaseClock> clock_p = nullptr);
 
 } // namespace duckdb
