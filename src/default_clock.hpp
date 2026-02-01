@@ -9,12 +9,9 @@
 
 namespace duckdb {
 
-/**
- * @class DefaultClock
- * @brief Default clock implementation using std::chrono::steady_clock.
- * @details Uses the system's steady clock for real-time operations.
- *          Thread-safe and suitable for production use.
- */
+// Default clock implementation using std::chrono::steady_clock.
+// Uses the system's steady clock for real-time operations.
+// Thread-safe and suitable for production use.
 class DefaultClock : public BaseClock {
 public:
 	TimePoint Now() const override {
@@ -30,10 +27,7 @@ public:
 	}
 };
 
-/**
- * @brief Create a default clock instance.
- * @return Shared pointer to a DefaultClock
- */
+// Creates a default clock instance.
 inline shared_ptr<BaseClock> CreateDefaultClock() {
 	return make_shared_ptr<DefaultClock>();
 }

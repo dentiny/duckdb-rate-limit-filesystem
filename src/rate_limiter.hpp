@@ -16,20 +16,12 @@
 
 namespace duckdb {
 
-/**
- * @class Quota
- * @brief Represents a rate limiting quota configuration.
- * @details Defines the bandwidth (bytes per second) and burst size
- *          (maximum bytes allowed at once) for rate limiting.
- */
+// Represents a rate limiting quota configuration.
+// Defines the bandwidth (bytes per second) and burst size (maximum bytes allowed at once).
 class Quota {
 public:
-	/**
-	 * @brief Create a per-second quota.
-	 * @param bandwidth_p Maximum bytes allowed per second (must be > 0)
-	 * @return Quota configured for per-second rate limiting
-	 * @throws InvalidInputException if bandwidth is 0
-	 */
+	// Creates a per-second quota with the specified bandwidth.
+	// Throws InvalidInputException if bandwidth is 0.
 	static Quota PerSecond(uint32_t bandwidth_p) {
 		if (bandwidth_p == 0) {
 			throw InvalidInputException("bandwidth must be greater than 0");
@@ -37,12 +29,8 @@ public:
 		return Quota(bandwidth_p, bandwidth_p);
 	}
 
-	/**
-	 * @brief Set the burst size for this quota.
-	 * @param burst_p Maximum bytes allowed at once (must be > 0)
-	 * @return Modified quota with the specified burst size
-	 * @throws InvalidInputException if burst is 0
-	 */
+	// Sets the burst size for this quota. Returns a modified quota with the specified burst size.
+	// Throws InvalidInputException if burst is 0.
 	Quota AllowBurst(uint32_t burst_p) const {
 		if (burst_p == 0) {
 			throw InvalidInputException("burst must be greater than 0");
@@ -50,33 +38,23 @@ public:
 		return Quota(bandwidth, burst_p);
 	}
 
-	/**
-	 * @brief Get the bandwidth (bytes per second).
-	 */
+	// Returns the bandwidth in bytes per second.
 	uint32_t GetBandwidth() const {
 		return bandwidth;
 	}
 
-	/**
-	 * @brief Get the burst size.
-	 */
+	// Returns the burst size in bytes.
 	uint32_t GetBurst() const {
 		return burst;
 	}
 
-	/**
-	 * @brief Calculate the emission interval (time between each byte).
-	 * @return Duration representing time per byte
-	 */
+	// Returns the emission interval (time between each byte).
 	Duration GetEmissionInterval() const {
 		// Time per byte = 1 second / bandwidth
 		return std::chrono::duration_cast<Duration>(std::chrono::seconds(1)) / bandwidth;
 	}
 
-	/**
-	 * @brief Calculate the delay tolerance (maximum time that can be "borrowed").
-	 * @return Duration representing the maximum delay tolerance
-	 */
+	// Returns the delay tolerance (maximum time that can be "borrowed").
 	Duration GetDelayTolerance() const {
 		// Delay tolerance = burst * emission_interval
 		auto emission_interval = GetEmissionInterval();
@@ -91,31 +69,20 @@ private:
 	uint32_t burst;
 };
 
-/**
- * @class RateLimiterState
- * @brief Internal state for the GCRA rate limiter.
- * @details Manages the Theoretical Arrival Time (TAT) which represents
- *          when the next cell (byte) is expected to arrive according to
- *          the configured rate.
- */
+// Internal state for the GCRA rate limiter.
+// Manages the Theoretical Arrival Time (TAT) which represents when the next cell (byte)
+// is expected to arrive according to the configured rate.
 class RateLimiterState {
 public:
 	RateLimiterState() : tat_nanos(0) {
 	}
 
-	/**
-	 * @brief Get the current TAT as nanoseconds since epoch.
-	 */
+	// Returns the current TAT as nanoseconds since epoch.
 	int64_t GetTatNanos() const {
 		return tat_nanos.load(std::memory_order_acquire);
 	}
 
-	/**
-	 * @brief Compare and swap the TAT value atomically.
-	 * @param expected Expected current value
-	 * @param desired New value to set
-	 * @return true if the swap succeeded, false otherwise
-	 */
+	// Atomically compares and swaps the TAT value. Returns true if the swap succeeded.
 	bool CompareExchangeTat(int64_t &expected, int64_t desired) {
 		return tat_nanos.compare_exchange_weak(expected, desired, std::memory_order_release, std::memory_order_relaxed);
 	}
@@ -124,65 +91,46 @@ private:
 	atomic<int64_t> tat_nanos;
 };
 
-/**
- * @brief Result of a rate limiting decision.
- */
+// Result of a rate limiting decision.
 enum class RateLimitResult {
-	/// The request is allowed to proceed
+	// The request is allowed to proceed
 	Allowed,
-	/// The request exceeds the burst capacity
+	// The request exceeds the burst capacity
 	InsufficientCapacity,
 };
 
-/**
- * @brief Information about when to retry after rate limiting.
- */
+// Information about when to retry after rate limiting.
 struct WaitInfo {
-	/// The time point at which the request can be retried
+	// The time point at which the request can be retried
 	TimePoint ready_at;
-	/// Duration to wait from now
+	// Duration to wait from now
 	Duration wait_duration;
 };
 
-/**
- * @class RateLimiter
- * @brief Thread-safe GCRA (Generic Cell Rate Algorithm) rate limiter.
- * @details Implements a leaky bucket algorithm variant that provides
- *          smooth rate limiting with burst support. The algorithm:
- *          - Tracks a Theoretical Arrival Time (TAT) for the next allowed request
- *          - Allows bursting up to the configured burst size
- *          - Provides nanosecond precision timing
- *          - Is lock-free for the common case (using atomic operations)
- *
- * @see https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm
- */
+// Thread-safe GCRA (Generic Cell Rate Algorithm) rate limiter.
+//
+// Implements a leaky bucket algorithm variant that provides smooth rate limiting with burst support.
+// The algorithm:
+// - Tracks a Theoretical Arrival Time (TAT) for the next allowed request
+// - Allows bursting up to the configured burst size
+// - Provides nanosecond precision timing
+// - Is lock-free for the common case (using atomic operations)
+//
+// See https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm
 class RateLimiter {
 public:
-	/**
-	 * @brief Create a rate limiter with the specified quota.
-	 * @param quota_p The rate limiting quota (bandwidth + burst)
-	 * @param clock_p Optional clock implementation (defaults to system clock)
-	 */
+	// Creates a rate limiter with the specified quota and optional clock implementation.
 	explicit RateLimiter(const Quota &quota_p, shared_ptr<BaseClock> clock_p = nullptr)
 	    : quota(quota_p), clock(clock_p ? clock_p : CreateDefaultClock()), state(make_uniq<RateLimiterState>()) {
 	}
 
-	/**
-	 * @brief Create a direct rate limiter (alias for the constructor).
-	 * @param quota_p The rate limiting quota
-	 * @param clock_p Optional clock implementation
-	 * @return Shared pointer to the rate limiter
-	 */
+	// Creates a shared rate limiter with the specified quota and optional clock.
 	static shared_ptr<RateLimiter> Direct(const Quota &quota_p, shared_ptr<BaseClock> clock_p = nullptr) {
 		return make_shared_ptr<RateLimiter>(quota_p, clock_p);
 	}
 
-	/**
-	 * @brief Check if n bytes can be transmitted now without waiting.
-	 * @param n Number of bytes to check
-	 * @return RateLimitResult::Allowed if allowed, or InsufficientCapacity if
-	 *         n exceeds burst
-	 */
+	// Checks if n bytes can be transmitted now without waiting.
+	// Returns Allowed if allowed, or InsufficientCapacity if n exceeds burst.
 	RateLimitResult Check(uint32_t n) const {
 		if (n == 0)
 			return RateLimitResult::Allowed;
@@ -198,12 +146,8 @@ public:
 		return RateLimitResult::Allowed;
 	}
 
-	/**
-	 * @brief Wait until n bytes can be transmitted.
-	 * @param n Number of bytes to transmit (must be <= burst)
-	 * @return RateLimitResult::Allowed on success, InsufficientCapacity if
-	 *         n > burst
-	 */
+	// Waits until n bytes can be transmitted. The request must be <= burst size.
+	// Returns Allowed on success, InsufficientCapacity if n > burst.
 	RateLimitResult UntilNReady(uint32_t n) {
 		if (n == 0)
 			return RateLimitResult::Allowed;
@@ -225,12 +169,8 @@ public:
 		}
 	}
 
-	/**
-	 * @brief Try to acquire permission for n bytes without waiting.
-	 * @param n Number of bytes to acquire
-	 * @return Optional WaitInfo if waiting is required, nullopt if allowed
-	 *         immediately
-	 */
+	// Tries to acquire permission for n bytes without waiting.
+	// Returns WaitInfo if waiting is required, nullopt if allowed immediately.
 	std::optional<WaitInfo> TryAcquireImmediate(uint32_t n) {
 		if (n == 0)
 			return std::nullopt;
@@ -248,16 +188,12 @@ public:
 		return decision.wait_info;
 	}
 
-	/**
-	 * @brief Get the configured quota.
-	 */
+	// Returns the configured quota.
 	const Quota &GetQuota() const {
 		return quota;
 	}
 
-	/**
-	 * @brief Get the clock used by this rate limiter.
-	 */
+	// Returns the clock used by this rate limiter.
 	const shared_ptr<BaseClock> &GetClock() const {
 		return clock;
 	}
@@ -268,23 +204,17 @@ private:
 		std::optional<WaitInfo> wait_info;
 	};
 
-	/**
-	 * @brief Convert a TimePoint to nanoseconds since epoch.
-	 */
+	// Converts a TimePoint to nanoseconds since epoch.
 	static int64_t ToNanos(TimePoint tp) {
 		return std::chrono::duration_cast<Duration>(tp.time_since_epoch()).count();
 	}
 
-	/**
-	 * @brief Convert nanoseconds since epoch to a TimePoint.
-	 */
+	// Converts nanoseconds since epoch to a TimePoint.
 	static TimePoint FromNanos(int64_t nanos) {
 		return TimePoint(Duration(nanos));
 	}
 
-	/**
-	 * @brief Check rate limit at a specific time point.
-	 */
+	// Checks rate limit at a specific time point.
 	std::optional<WaitInfo> CheckAt(TimePoint now, uint32_t n) const {
 		auto emission_interval = quota.GetEmissionInterval();
 		auto delay_tolerance = quota.GetDelayTolerance();
@@ -311,9 +241,7 @@ private:
 		return std::nullopt;
 	}
 
-	/**
-	 * @brief Try to acquire rate limit at a specific time point.
-	 */
+	// Tries to acquire rate limit at a specific time point.
 	AcquireDecision TryAcquire(TimePoint now, uint32_t n) {
 		auto emission_interval = quota.GetEmissionInterval();
 		auto delay_tolerance = quota.GetDelayTolerance();
@@ -353,19 +281,10 @@ private:
 	unique_ptr<RateLimiterState> state;
 };
 
-/**
- * @brief Shared rate limiter type for thread-safe access across multiple
- *        threads/operations.
- */
+// Shared rate limiter type for thread-safe access across multiple threads/operations.
 using SharedRateLimiter = shared_ptr<RateLimiter>;
 
-/**
- * @brief Create a direct rate limiter with the specified bandwidth and burst.
- * @param bandwidth_p Maximum bytes per second
- * @param burst_p Maximum bytes allowed at once
- * @param clock_p Optional clock implementation
- * @return Shared pointer to the rate limiter
- */
+// Creates a shared rate limiter with the specified bandwidth, burst, and optional clock.
 inline SharedRateLimiter CreateRateLimiter(uint32_t bandwidth_p, uint32_t burst_p,
                                            shared_ptr<BaseClock> clock_p = nullptr) {
 	auto quota = Quota::PerSecond(bandwidth_p).AllowBurst(burst_p);

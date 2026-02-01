@@ -15,21 +15,17 @@
 
 namespace duckdb {
 
-/**
- * @brief Error codes for throttle layer operations.
- */
+// Error codes for throttle layer operations.
 enum class ThrottleError {
-	/// No error
+	// No error
 	None,
-	/// Request size exceeds the configured burst capacity
+	// Request size exceeds the configured burst capacity
 	RequestExceedsBurst,
-	/// Rate limited - waiting for quota
+	// Rate limited - waiting for quota
 	RateLimited,
 };
 
-/**
- * @brief Exception thrown when throttle operations fail.
- */
+// Exception thrown when throttle operations fail.
 class ThrottleException : public std::runtime_error {
 public:
 	explicit ThrottleException(ThrottleError error_p, const string &message)
@@ -44,17 +40,15 @@ private:
 	ThrottleError error;
 };
 
-/**
- * @brief Result type for read operations.
- */
+// Result type for read operations.
 struct ReadResult {
-	/// Whether the operation succeeded
+	// Whether the operation succeeded
 	bool success;
-	/// Error code if operation failed
+	// Error code if operation failed
 	ThrottleError error;
-	/// Number of bytes actually read
+	// Number of bytes actually read
 	size_t bytes_read;
-	/// Error message if operation failed
+	// Error message if operation failed
 	string error_message;
 
 	static ReadResult Success(size_t bytes) {
@@ -66,17 +60,15 @@ struct ReadResult {
 	}
 };
 
-/**
- * @brief Result type for write operations.
- */
+// Result type for write operations.
 struct WriteResult {
-	/// Whether the operation succeeded
+	// Whether the operation succeeded
 	bool success;
-	/// Error code if operation failed
+	// Error code if operation failed
 	ThrottleError error;
-	/// Number of bytes actually written
+	// Number of bytes actually written
 	size_t bytes_written;
-	/// Error message if operation failed
+	// Error message if operation failed
 	string error_message;
 
 	static WriteResult Success(size_t bytes) {
@@ -88,275 +80,172 @@ struct WriteResult {
 	}
 };
 
-/**
- * @class ThrottleLayer
- * @brief Bandwidth and API call rate limiter for I/O operations.
- *
- * @details Implements a throttle layer using the Generic Cell Rate
- *          Algorithm (GCRA). This provides smooth rate limiting with burst
- *          support for bandwidth, and simple rate limiting for API calls.
- *
- * Key features:
- * - **Bandwidth**: Maximum bytes per second allowed through the throttle
- * - **Burst**: Maximum bytes allowed in a single burst (must be >= largest
- *   single operation)
- * - **API Rate**: Maximum API calls per second (optional)
- * - **Thread-safe**: Safe for concurrent use from multiple threads
- * - **Blocking**: Operations will block until quota is available
- *
- * @note When setting the ThrottleLayer, always consider the largest possible
- *       operation size as the burst size, as the burst size should be larger
- *       than any possible byte length to allow it to pass through.
- *
- * @par Example Usage:
- * @code{.cpp}
- * // Create a throttle layer with:
- * // - 10 KiB/s bandwidth, 10 MiB burst
- * // - 100 API calls/s
- * auto throttle = ThrottleLayer(10 * 1024, 10000 * 1024, 100);
- *
- * // Read with throttling (checks both bandwidth and API rate)
- * auto result = throttle.Read("/path/to/file", 0, 4096);
- * if (result.success) {
- *     // Read succeeded, result.bytes_read contains bytes read
- * }
- *
- * // Write with throttling
- * auto write_result = throttle.Write("/path/to/file", 8192);
- * if (write_result.success) {
- *     // Write succeeded
- * }
- * @endcode
- */
+// Bandwidth and API call rate limiter for I/O operations.
+//
+// Implements a throttle layer using the Generic Cell Rate Algorithm (GCRA).
+// This provides smooth rate limiting with burst support for bandwidth, and simple
+// rate limiting for API calls.
+//
+// Key features:
+// - Bandwidth: Maximum bytes per second allowed through the throttle
+// - Burst: Maximum bytes allowed in a single burst (must be >= largest single operation)
+// - API Rate: Maximum API calls per second (optional)
+// - Thread-safe: Safe for concurrent use from multiple threads
+// - Blocking: Operations will block until quota is available
+//
+// When setting the ThrottleLayer, always consider the largest possible operation size
+// as the burst size, as the burst size should be larger than any possible byte length
+// to allow it to pass through.
+//
+// Example usage:
+//   // Create a throttle layer with:
+//   // - 10 KiB/s bandwidth, 10 MiB burst
+//   // - 100 API calls/s
+//   auto throttle = ThrottleLayer(10 * 1024, 10000 * 1024, 100);
+//
+//   // Read with throttling (checks both bandwidth and API rate)
+//   auto result = throttle.Read("/path/to/file", 0, 4096);
+//   if (result.success) {
+//       // Read succeeded, result.bytes_read contains bytes read
+//   }
+//
+//   // Write with throttling
+//   auto write_result = throttle.Write("/path/to/file", 8192);
+//   if (write_result.success) {
+//       // Write succeeded
+//   }
 class ThrottleLayer {
 public:
-	/**
-	 * @brief Construct a new ThrottleLayer with bandwidth limiting only.
-	 *
-	 * @param bandwidth_p Maximum bytes per second (must be > 0)
-	 * @param burst_p Maximum bytes allowed at once (must be > 0)
-	 * @param clock_p Optional custom clock implementation (for testing)
-	 *
-	 * @throws InvalidInputException if bandwidth or burst is 0
-	 *
-	 * @par Example:
-	 * @code{.cpp}
-	 * // 10 KiB/s bandwidth, 10 MiB burst (no API rate limiting)
-	 * ThrottleLayer throttle(10 * 1024, 10000 * 1024);
-	 * @endcode
-	 */
+	// Constructs a ThrottleLayer with bandwidth limiting only.
+	// Both bandwidth and burst must be > 0, otherwise throws InvalidInputException.
+	//
+	// Example:
+	//   // 10 KiB/s bandwidth, 10 MiB burst (no API rate limiting)
+	//   ThrottleLayer throttle(10 * 1024, 10000 * 1024);
 	ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p, shared_ptr<BaseClock> clock_p = nullptr);
 
-	/**
-	 * @brief Construct a new ThrottleLayer with both bandwidth and API rate
-	 *        limiting.
-	 *
-	 * @param bandwidth_p Maximum bytes per second (must be > 0)
-	 * @param burst_p Maximum bytes allowed at once (must be > 0)
-	 * @param api_rate_p Maximum API calls per second (must be > 0)
-	 * @param clock_p Optional custom clock implementation (for testing)
-	 *
-	 * @throws InvalidInputException if any parameter is 0
-	 *
-	 * @par Example:
-	 * @code{.cpp}
-	 * // 10 KiB/s bandwidth, 10 MiB burst, 100 API calls/s
-	 * ThrottleLayer throttle(10 * 1024, 10000 * 1024, 100);
-	 * @endcode
-	 */
+	// Constructs a ThrottleLayer with both bandwidth and API rate limiting.
+	// All parameters must be > 0, otherwise throws InvalidInputException.
+	//
+	// Example:
+	//   // 10 KiB/s bandwidth, 10 MiB burst, 100 API calls/s
+	//   ThrottleLayer throttle(10 * 1024, 10000 * 1024, 100);
 	ThrottleLayer(uint32_t bandwidth_p, uint32_t burst_p, uint32_t api_rate_p, shared_ptr<BaseClock> clock_p = nullptr);
 
-	/**
-	 * @brief Copy constructor.
-	 * @details Creates a new ThrottleLayer sharing the same rate limiter
-	 *          state. This means multiple copies will share the same
-	 *          bandwidth quota.
-	 */
+	// Copy constructor. Creates a new ThrottleLayer sharing the same rate limiter state.
+	// This means multiple copies will share the same bandwidth quota.
 	ThrottleLayer(const ThrottleLayer &other);
 
-	/**
-	 * @brief Copy assignment operator.
-	 */
+	// Copy assignment operator.
 	ThrottleLayer &operator=(const ThrottleLayer &other);
 
-	/**
-	 * @brief Move constructor.
-	 */
+	// Move constructor.
 	ThrottleLayer(ThrottleLayer &&other) noexcept;
 
-	/**
-	 * @brief Move assignment operator.
-	 */
+	// Move assignment operator.
 	ThrottleLayer &operator=(ThrottleLayer &&other) noexcept;
 
-	/**
-	 * @brief Destructor.
-	 */
+	// Destructor.
 	~ThrottleLayer();
 
-	/**
-	 * @brief Read data with bandwidth and API rate throttling.
-	 *
-	 * @details This method simulates a throttled read operation. It blocks
-	 *          until sufficient bandwidth and API quota is available, then
-	 *          returns immediately (the actual read would be performed by
-	 *          the inner operator in a real implementation).
-	 *
-	 * @param path Path to the file to read
-	 * @param start_offset Starting offset in the file (bytes)
-	 * @param bytes_to_read Number of bytes to read
-	 *
-	 * @return ReadResult containing success status and bytes read
-	 *
-	 * @note If bytes_to_read exceeds the burst size, the operation will fail
-	 *       with ThrottleError::RequestExceedsBurst.
-	 *
-	 * @par Example:
-	 * @code{.cpp}
-	 * auto result = throttle.Read("/data/file.bin", 0, 4096);
-	 * if (!result.success) {
-	 *     std::cerr << "Read failed: " << result.error_message << std::endl;
-	 * }
-	 * @endcode
-	 */
+	// Reads data with bandwidth and API rate throttling.
+	//
+	// This method simulates a throttled read operation. It blocks until sufficient bandwidth
+	// and API quota is available, then returns immediately (the actual read would be performed
+	// by the inner operator in a real implementation).
+	//
+	// If bytes_to_read exceeds the burst size, the operation will fail with
+	// ThrottleError::RequestExceedsBurst.
+	//
+	// Example:
+	//   auto result = throttle.Read("/data/file.bin", 0, 4096);
+	//   if (!result.success) {
+	//       std::cerr << "Read failed: " << result.error_message << std::endl;
+	//   }
 	ReadResult Read(const string &path, int start_offset, int bytes_to_read);
 
-	/**
-	 * @brief Write data with bandwidth and API rate throttling.
-	 *
-	 * @details This method applies bandwidth and API rate throttling before
-	 *          allowing a write operation. It blocks until sufficient quota
-	 *          is available.
-	 *
-	 * @param path Path to the file to write
-	 * @param bytes_to_write Number of bytes to write
-	 *
-	 * @return WriteResult containing success status and bytes written
-	 *
-	 * @note If bytes_to_write exceeds the burst size, the operation will fail
-	 *       with ThrottleError::RequestExceedsBurst.
-	 *
-	 * @par Example:
-	 * @code{.cpp}
-	 * auto result = throttle.Write("/data/output.bin", 8192);
-	 * if (!result.success) {
-	 *     std::cerr << "Write failed: " << result.error_message << std::endl;
-	 * }
-	 * @endcode
-	 */
+	// Writes data with bandwidth and API rate throttling.
+	//
+	// This method applies bandwidth and API rate throttling before allowing a write operation.
+	// It blocks until sufficient quota is available.
+	//
+	// If bytes_to_write exceeds the burst size, the operation will fail with
+	// ThrottleError::RequestExceedsBurst.
+	//
+	// Example:
+	//   auto result = throttle.Write("/data/output.bin", 8192);
+	//   if (!result.success) {
+	//       std::cerr << "Write failed: " << result.error_message << std::endl;
+	//   }
 	WriteResult Write(const string &path, int bytes_to_write);
 
-	/**
-	 * @brief Get the configured bandwidth.
-	 * @return Bandwidth in bytes per second
-	 */
+	// Returns the configured bandwidth in bytes per second.
 	uint32_t GetBandwidth() const;
 
-	/**
-	 * @brief Get the configured burst size.
-	 * @return Burst size in bytes
-	 */
+	// Returns the configured burst size in bytes.
 	uint32_t GetBurst() const;
 
-	/**
-	 * @brief Get the configured API rate limit.
-	 * @return API calls per second, or 0 if not configured
-	 */
+	// Returns the configured API rate limit (calls per second), or 0 if not configured.
 	uint32_t GetApiRate() const;
 
-	/**
-	 * @brief Check if API rate limiting is enabled.
-	 * @return true if API rate limiting is configured
-	 */
+	// Returns true if API rate limiting is enabled.
 	bool HasApiRateLimiting() const;
 
-	/**
-	 * @brief Get the bandwidth rate limiter (for advanced use cases).
-	 * @return Shared pointer to the bandwidth rate limiter
-	 */
+	// Returns the bandwidth rate limiter for advanced use cases.
 	SharedRateLimiter GetBandwidthRateLimiter() const;
 
-	/**
-	 * @brief Get the API rate limiter (for advanced use cases).
-	 * @return Shared pointer to the API rate limiter, or nullptr if not
-	 *         configured
-	 */
+	// Returns the API rate limiter for advanced use cases, or nullptr if not configured.
 	SharedRateLimiter GetApiRateLimiter() const;
 
 private:
-	/// Configured bandwidth (bytes per second)
+	// Configured bandwidth (bytes per second)
 	uint32_t bandwidth;
-	/// Configured burst size (bytes)
+	// Configured burst size (bytes)
 	uint32_t burst;
-	/// Configured API rate (calls per second), 0 if disabled
+	// Configured API rate (calls per second), 0 if disabled
 	uint32_t api_rate;
-	/// Shared rate limiter for bandwidth
+	// Shared rate limiter for bandwidth
 	SharedRateLimiter bandwidth_limiter;
-	/// Shared rate limiter for API calls (nullptr if disabled)
+	// Shared rate limiter for API calls (nullptr if disabled)
 	SharedRateLimiter api_limiter;
 };
 
-/**
- * @brief Builder class for creating ThrottleLayer instances.
- *
- * @details Provides a fluent interface for configuring ThrottleLayer.
- *
- * @par Example:
- * @code{.cpp}
- * auto throttle = ThrottleLayerBuilder()
- *     .WithBandwidth(10 * 1024)     // 10 KiB/s
- *     .WithBurst(10000 * 1024)      // 10 MiB
- *     .WithApiRate(100)             // 100 calls/s
- *     .Build();
- * @endcode
- */
+// Builder class for creating ThrottleLayer instances.
+// Provides a fluent interface for configuring ThrottleLayer.
+//
+// Example:
+//   auto throttle = ThrottleLayerBuilder()
+//       .WithBandwidth(10 * 1024)     // 10 KiB/s
+//       .WithBurst(10000 * 1024)      // 10 MiB
+//       .WithApiRate(100)             // 100 calls/s
+//       .Build();
 class ThrottleLayerBuilder {
 public:
-	/**
-	 * @brief Set the bandwidth.
-	 * @param bandwidth_p Bytes per second
-	 * @return Reference to this builder
-	 */
+	// Sets the bandwidth in bytes per second.
 	ThrottleLayerBuilder &WithBandwidth(uint32_t bandwidth_p) {
 		bandwidth = bandwidth_p;
 		return *this;
 	}
 
-	/**
-	 * @brief Set the burst size.
-	 * @param burst_p Maximum bytes at once
-	 * @return Reference to this builder
-	 */
+	// Sets the burst size (maximum bytes at once).
 	ThrottleLayerBuilder &WithBurst(uint32_t burst_p) {
 		burst = burst_p;
 		return *this;
 	}
 
-	/**
-	 * @brief Set the API rate limit.
-	 * @param api_rate_p Maximum API calls per second
-	 * @return Reference to this builder
-	 */
+	// Sets the API rate limit (maximum API calls per second).
 	ThrottleLayerBuilder &WithApiRate(uint32_t api_rate_p) {
 		api_rate = api_rate_p;
 		return *this;
 	}
 
-	/**
-	 * @brief Set a custom clock (for testing).
-	 * @param clock_p Clock implementation
-	 * @return Reference to this builder
-	 */
+	// Sets a custom clock for testing purposes.
 	ThrottleLayerBuilder &WithClock(shared_ptr<BaseClock> clock_p) {
 		clock = clock_p;
 		return *this;
 	}
 
-	/**
-	 * @brief Build the ThrottleLayer.
-	 * @return Configured ThrottleLayer instance
-	 * @throws InvalidInputException if bandwidth or burst is not set or is 0
-	 */
+	// Builds the ThrottleLayer. Throws InvalidInputException if bandwidth or burst is not set or is 0.
 	ThrottleLayer Build() const {
 		if (bandwidth == 0) {
 			throw InvalidInputException("bandwidth must be set and > 0");
