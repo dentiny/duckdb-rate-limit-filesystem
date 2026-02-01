@@ -69,6 +69,11 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 		return;
 	}
 
+	if (op_config->mode == RateLimitMode::NONE) {
+		throw InternalException("Rate limit mode is NONE for operation '%s', which should not happen",
+		                        FileSystemOperationToString(operation));
+	}
+
 	auto result = rate_limiter->TryAcquireImmediate(bytes);
 	if (!result.has_value()) {
 		// Allowed immediately
@@ -81,7 +86,7 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 		                  std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count());
 	}
 
-	// Blocking mode: wait until ready
+	// Blocking mode (default): wait until ready
 	auto wait_result = rate_limiter->UntilNReady(bytes);
 	if (wait_result == RateLimitResult::InsufficientCapacity) {
 		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,

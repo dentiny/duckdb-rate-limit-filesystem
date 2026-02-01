@@ -28,8 +28,7 @@ struct OperationConfig {
 	SharedRateLimiter rate_limiter;
 
 	OperationConfig()
-	    : operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::BLOCKING), burst(0),
-	      rate_limiter(nullptr) {
+	    : operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE), burst(0), rate_limiter(nullptr) {
 	}
 };
 

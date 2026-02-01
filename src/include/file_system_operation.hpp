@@ -7,7 +7,7 @@ namespace duckdb {
 
 // Filesystem operations that can be rate limited.
 enum class FileSystemOperation : uint8_t {
-	// No operation (default/uninitialized)
+	// No operation
 	NONE,
 	// File metadata queries (FileExists, DirectoryExists, GetFileSize, etc.)
 	STAT,

@@ -7,6 +7,8 @@ namespace duckdb {
 
 // Represents the behavior mode when rate limit is exceeded.
 enum class RateLimitMode : uint8_t {
+	// No mode set
+	NONE,
 	// Wait until the rate limit allows the operation to proceed
 	BLOCKING,
 	// Fail immediately if the rate limit would be exceeded
