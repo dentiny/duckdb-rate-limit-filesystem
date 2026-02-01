@@ -242,12 +242,7 @@ TEST_CASE("Rate limit - concurrent-style requests with mock clock", "[rate]") {
 TEST_CASE("Rate limit - ThrottleLayer builder with rate limiting", "[rate][throttle][builder]") {
 	auto clock = CreateMockClock();
 
-	auto throttle = ThrottleLayerBuilder()
-	                    .WithBandwidth(100)
-	                    .WithBurst(100)
-	                    .WithApiRate(10)
-	                    .WithClock(clock)
-	                    .Build();
+	auto throttle = ThrottleLayerBuilder().WithBandwidth(100).WithBurst(100).WithApiRate(10).WithClock(clock).Build();
 
 	REQUIRE(throttle.GetBandwidth() == 100);
 	REQUIRE(throttle.GetBurst() == 100);
@@ -292,4 +287,3 @@ TEST_CASE("Rate limit - GetApiRateLimiter returns valid limiter when configured"
 	REQUIRE(api_limiter != nullptr);
 	REQUIRE(api_limiter->GetQuota().GetBandwidth() == 10);
 }
-

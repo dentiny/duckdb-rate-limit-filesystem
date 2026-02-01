@@ -165,4 +165,3 @@ TEST_CASE("Burst limit - ThrottleLayer creation with zero burst throws", "[burst
 	auto clock = CreateMockClock();
 	REQUIRE_THROWS_AS(ThrottleLayer(1000, 0, clock), InvalidInputException);
 }
-
