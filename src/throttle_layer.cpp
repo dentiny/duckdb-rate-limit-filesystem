@@ -7,7 +7,7 @@
 namespace duckdb {
 
 ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             std::shared_ptr<Clock> clock)
+                             std::shared_ptr<BaseClock> clock)
     : bandwidth_(bandwidth), burst_(burst), api_rate_(0), api_limiter_(nullptr) {
   if (bandwidth == 0) {
     throw std::invalid_argument("bandwidth must be greater than 0");
@@ -21,7 +21,7 @@ ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
 }
 
 ThrottleLayer::ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                             uint32_t api_rate, std::shared_ptr<Clock> clock)
+                             uint32_t api_rate, std::shared_ptr<BaseClock> clock)
     : bandwidth_(bandwidth), burst_(burst), api_rate_(api_rate) {
   if (bandwidth == 0) {
     throw std::invalid_argument("bandwidth must be greater than 0");

@@ -8,7 +8,8 @@
 #include <optional>
 #include <stdexcept>
 
-#include "clock.hpp"
+#include "base_clock.hpp"
+#include "default_clock.hpp"
 
 namespace duckdb {
 
@@ -159,7 +160,7 @@ class RateLimiter {
    * @param clock Optional clock implementation (defaults to system clock)
    */
   explicit RateLimiter(const Quota& quota,
-                       std::shared_ptr<Clock> clock = nullptr)
+                       std::shared_ptr<BaseClock> clock = nullptr)
       : quota_(quota),
         clock_(clock ? clock : CreateDefaultClock()),
         state_(std::make_unique<RateLimiterState>()) {}
@@ -172,7 +173,7 @@ class RateLimiter {
    */
   static std::shared_ptr<RateLimiter> Direct(
       const Quota& quota,
-      std::shared_ptr<Clock> clock = nullptr) {
+      std::shared_ptr<BaseClock> clock = nullptr) {
     return std::make_shared<RateLimiter>(quota, clock);
   }
 
@@ -250,7 +251,7 @@ class RateLimiter {
   /**
    * @brief Get the clock used by this rate limiter.
    */
-  const std::shared_ptr<Clock>& GetClock() const { return clock_; }
+  const std::shared_ptr<BaseClock>& GetClock() const { return clock_; }
 
  private:
   struct AcquireDecision {
@@ -346,7 +347,7 @@ class RateLimiter {
   }
 
   Quota quota_;
-  std::shared_ptr<Clock> clock_;
+  std::shared_ptr<BaseClock> clock_;
   std::unique_ptr<RateLimiterState> state_;
 };
 
@@ -366,7 +367,7 @@ using SharedRateLimiter = std::shared_ptr<RateLimiter>;
 inline SharedRateLimiter CreateRateLimiter(
     uint32_t bandwidth,
     uint32_t burst,
-    std::shared_ptr<Clock> clock = nullptr) {
+    std::shared_ptr<BaseClock> clock = nullptr) {
   auto quota = Quota::PerSecond(bandwidth).AllowBurst(burst);
   return RateLimiter::Direct(quota, clock);
 }

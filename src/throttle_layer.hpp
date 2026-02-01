@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "clock.hpp"
+#include "base_clock.hpp"
+#include "default_clock.hpp"
 #include "rate_limiter.hpp"
 
 namespace duckdb {
@@ -139,7 +140,7 @@ class ThrottleLayer {
    * @endcode
    */
   ThrottleLayer(uint32_t bandwidth, uint32_t burst,
-                std::shared_ptr<Clock> clock = nullptr);
+                std::shared_ptr<BaseClock> clock = nullptr);
 
   /**
    * @brief Construct a new ThrottleLayer with both bandwidth and API rate
@@ -159,7 +160,7 @@ class ThrottleLayer {
    * @endcode
    */
   ThrottleLayer(uint32_t bandwidth, uint32_t burst, uint32_t api_rate,
-                std::shared_ptr<Clock> clock = nullptr);
+                std::shared_ptr<BaseClock> clock = nullptr);
 
   /**
    * @brief Copy constructor.
@@ -342,7 +343,7 @@ class ThrottleLayerBuilder {
    * @param clock Clock implementation
    * @return Reference to this builder
    */
-  ThrottleLayerBuilder& WithClock(std::shared_ptr<Clock> clock) {
+  ThrottleLayerBuilder& WithClock(std::shared_ptr<BaseClock> clock) {
     clock_ = clock;
     return *this;
   }
@@ -369,7 +370,7 @@ class ThrottleLayerBuilder {
   uint32_t bandwidth_ = 0;
   uint32_t burst_ = 0;
   uint32_t api_rate_ = 0;
-  std::shared_ptr<Clock> clock_ = nullptr;
+  std::shared_ptr<BaseClock> clock_ = nullptr;
 };
 
 }  // namespace duckdb
