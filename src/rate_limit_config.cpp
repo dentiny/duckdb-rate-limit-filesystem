@@ -1,15 +1,20 @@
 #include "rate_limit_config.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/string_util.hpp"
 
 namespace duckdb {
 
 RateLimitMode ParseRateLimitMode(const string &mode_str) {
-	if (mode_str == "blocking" || mode_str == "block") {
+	auto mode_lower = StringUtil::Lower(mode_str);
+
+	if (mode_lower == "blocking" || mode_lower == "block") {
 		return RateLimitMode::BLOCKING;
-	} else if (mode_str == "non_blocking" || mode_str == "non-blocking" || mode_str == "nonblocking") {
+	}
+	if (mode_lower == "non_blocking" || mode_lower == "non-blocking" || mode_lower == "nonblocking") {
 		return RateLimitMode::NON_BLOCKING;
 	}
+
 	throw InvalidInputException("Invalid rate limit mode '%s'. Use 'blocking' or 'non_blocking'", mode_str);
 }
 
