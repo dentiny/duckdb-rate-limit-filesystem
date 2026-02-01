@@ -2,34 +2,8 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
-#include "no_destructor.hpp"
 
 namespace duckdb {
-
-namespace {
-
-// Valid filesystem operations that can be rate limited
-const NoDestructor<vector<string>> VALID_OPERATIONS {{"open", "stat", "read", "write", "list", "delete"}};
-
-bool IsValidOperation(const string &op) {
-	for (const auto &valid_op : *VALID_OPERATIONS) {
-		if (op == valid_op) {
-			return true;
-		}
-	}
-	return false;
-}
-
-} // namespace
-
-string NormalizeOperation(const string &operation) {
-	auto op_lower = StringUtil::Lower(operation);
-	if (!IsValidOperation(op_lower)) {
-		throw InvalidInputException(
-		    "Invalid operation '%s'. Valid operations are: open, stat, read, write, list, delete", operation);
-	}
-	return op_lower;
-}
 
 RateLimitConfig::RateLimitConfig() {
 }
@@ -46,10 +20,14 @@ string RateLimitConfig::ObjectType() {
 }
 
 void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMode mode) {
-	auto op = NormalizeOperation(operation);
+	auto op = ParseFileSystemOperation(operation);
+	SetQuota(op, value, mode);
+}
+
+void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateLimitMode mode) {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
-	auto it = configs.find(op);
+	auto it = configs.find(operation);
 	if (it == configs.end()) {
 		if (value == 0) {
 			// No config exists and quota is 0, nothing to do
@@ -57,11 +35,11 @@ void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMo
 		}
 		// Create new config
 		OperationConfig config;
-		config.operation = op;
+		config.operation = operation;
 		config.quota = value;
 		config.mode = mode;
 		config.burst = 0;
-		configs[op] = config;
+		configs[operation] = config;
 	} else {
 		it->second.quota = value;
 		it->second.mode = mode;
@@ -73,15 +51,19 @@ void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMo
 	}
 
 	// Update the rate limiter
-	auto &config = configs[op];
+	auto &config = configs[operation];
 	UpdateRateLimiter(config);
 }
 
 void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
-	auto op = NormalizeOperation(operation);
+	auto op = ParseFileSystemOperation(operation);
+	SetBurst(op, value);
+}
+
+void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
-	auto it = configs.find(op);
+	auto it = configs.find(operation);
 	if (it == configs.end()) {
 		if (value == 0) {
 			// No config exists and burst is 0, nothing to do
@@ -89,11 +71,11 @@ void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 		}
 		// Create new config with only burst
 		OperationConfig config;
-		config.operation = op;
+		config.operation = operation;
 		config.quota = 0;
 		config.mode = RateLimitMode::BLOCKING;
 		config.burst = value;
-		configs[op] = config;
+		configs[operation] = config;
 	} else {
 		it->second.burst = value;
 		// If both quota and burst are 0, remove the config
@@ -104,24 +86,22 @@ void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 	}
 
 	// Update the rate limiter
-	auto &config = configs[op];
+	auto &config = configs[operation];
 	UpdateRateLimiter(config);
 }
 
-const OperationConfig *RateLimitConfig::GetConfig(const string &operation) const {
-	auto op = StringUtil::Lower(operation);
+const OperationConfig *RateLimitConfig::GetConfig(FileSystemOperation operation) const {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
-	auto it = configs.find(op);
+	auto it = configs.find(operation);
 	if (it == configs.end()) {
 		return nullptr;
 	}
 	return &it->second;
 }
 
-SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &operation) {
-	auto op = StringUtil::Lower(operation);
+SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(FileSystemOperation operation) {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
-	auto it = configs.find(op);
+	auto it = configs.find(operation);
 	if (it == configs.end()) {
 		return nullptr;
 	}
@@ -144,9 +124,13 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 }
 
 void RateLimitConfig::ClearConfig(const string &operation) {
-	auto op = StringUtil::Lower(operation);
+	auto op = ParseFileSystemOperation(operation);
+	ClearConfig(op);
+}
+
+void RateLimitConfig::ClearConfig(FileSystemOperation operation) {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
-	configs.erase(op);
+	configs.erase(operation);
 }
 
 void RateLimitConfig::ClearAll() {

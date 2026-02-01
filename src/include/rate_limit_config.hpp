@@ -7,21 +7,17 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/object_cache.hpp"
 
+#include "file_system_operation.hpp"
 #include "mutex.hpp"
 #include "rate_limit_mode.hpp"
 #include "rate_limiter.hpp"
 
 namespace duckdb {
 
-// Normalizes an operation name to lowercase and validates it.
-// Valid operations: open, stat, read, write, list, delete
-// Throws InvalidInputException for unknown operations.
-string NormalizeOperation(const string &operation);
-
 // Configuration for a single operation's rate limiting.
 struct OperationConfig {
-	// Operation name (e.g., "read", "write", "list")
-	string operation;
+	// Operation type
+	FileSystemOperation operation;
 	// Quota value (bandwidth in bytes per second)
 	idx_t quota;
 	// Behavior mode when rate limit is exceeded
@@ -31,7 +27,9 @@ struct OperationConfig {
 	// The rate limiter instance (created lazily)
 	SharedRateLimiter rate_limiter;
 
-	OperationConfig() : quota(0), mode(RateLimitMode::BLOCKING), burst(0), rate_limiter(nullptr) {
+	OperationConfig()
+	    : operation(FileSystemOperation::READ), quota(0), mode(RateLimitMode::BLOCKING), burst(0),
+	      rate_limiter(nullptr) {
 	}
 };
 
@@ -51,25 +49,32 @@ public:
 	// Static method for ObjectCache::Get compatibility.
 	static string ObjectType();
 
-	// Sets the quota for an operation.
-	// If both quota and burst are 0 after this call, the config entry is removed.
+	// Sets the quota for an operation (string version for SQL interface).
 	void SetQuota(const string &operation, idx_t value, RateLimitMode mode);
 
-	// Sets the burst for an operation.
-	// If both quota and burst are 0 after this call, the config entry is removed.
+	// Sets the quota for an operation (enum version for C++ usage).
+	void SetQuota(FileSystemOperation operation, idx_t value, RateLimitMode mode);
+
+	// Sets the burst for an operation (string version for SQL interface).
 	void SetBurst(const string &operation, idx_t value);
 
+	// Sets the burst for an operation (enum version for C++ usage).
+	void SetBurst(FileSystemOperation operation, idx_t value);
+
 	// Gets the configuration for an operation. Returns nullptr if not configured.
-	const OperationConfig *GetConfig(const string &operation) const;
+	const OperationConfig *GetConfig(FileSystemOperation operation) const;
 
 	// Gets or creates a rate limiter for an operation. Returns nullptr if not configured.
-	SharedRateLimiter GetOrCreateRateLimiter(const string &operation);
+	SharedRateLimiter GetOrCreateRateLimiter(FileSystemOperation operation);
 
 	// Returns all configured operations.
 	vector<OperationConfig> GetAllConfigs() const;
 
-	// Clears the configuration for an operation.
+	// Clears the configuration for an operation (string version).
 	void ClearConfig(const string &operation);
+
+	// Clears the configuration for an operation (enum version).
+	void ClearConfig(FileSystemOperation operation);
 
 	// Clears all configurations.
 	void ClearAll();
@@ -85,8 +90,8 @@ private:
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);
 
 	mutable concurrency::mutex config_lock;
-	// Maps from normalized operation name to its configuration.
-	unordered_map<string, OperationConfig> configs DUCKDB_GUARDED_BY(config_lock);
+	// Maps from operation enum to its configuration.
+	unordered_map<FileSystemOperation, OperationConfig> configs DUCKDB_GUARDED_BY(config_lock);
 };
 
 } // namespace duckdb
