@@ -29,6 +29,31 @@ string RateLimitModeToString(RateLimitMode mode) {
 	}
 }
 
+namespace {
+
+// Valid filesystem operations that can be rate limited
+const vector<string> VALID_OPERATIONS = {"open", "stat", "read", "write", "list", "delete"};
+
+bool IsValidOperation(const string &op) {
+	for (const auto &valid_op : VALID_OPERATIONS) {
+		if (op == valid_op) {
+			return true;
+		}
+	}
+	return false;
+}
+
+} // namespace
+
+string NormalizeOperation(const string &operation) {
+	auto op_lower = StringUtil::Lower(operation);
+	if (!IsValidOperation(op_lower)) {
+		throw InvalidInputException(
+		    "Invalid operation '%s'. Valid operations are: open, stat, read, write, list, delete", operation);
+	}
+	return op_lower;
+}
+
 RateLimitConfig::RateLimitConfig() {
 }
 
@@ -44,9 +69,10 @@ string RateLimitConfig::ObjectType() {
 }
 
 void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMode mode) {
+	auto op = NormalizeOperation(operation);
 	lock_guard<mutex> guard(config_lock);
 
-	auto it = configs.find(operation);
+	auto it = configs.find(op);
 	if (it == configs.end()) {
 		if (value == 0) {
 			// No config exists and quota is 0, nothing to do
@@ -54,11 +80,11 @@ void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMo
 		}
 		// Create new config
 		OperationConfig config;
-		config.operation = operation;
+		config.operation = op;
 		config.quota = value;
 		config.mode = mode;
 		config.burst = 0;
-		configs[operation] = config;
+		configs[op] = config;
 	} else {
 		it->second.quota = value;
 		it->second.mode = mode;
@@ -70,14 +96,15 @@ void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMo
 	}
 
 	// Update the rate limiter
-	auto &config = configs[operation];
+	auto &config = configs[op];
 	UpdateRateLimiter(config);
 }
 
 void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
+	auto op = NormalizeOperation(operation);
 	lock_guard<mutex> guard(config_lock);
 
-	auto it = configs.find(operation);
+	auto it = configs.find(op);
 	if (it == configs.end()) {
 		if (value == 0) {
 			// No config exists and burst is 0, nothing to do
@@ -85,11 +112,11 @@ void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 		}
 		// Create new config with only burst
 		OperationConfig config;
-		config.operation = operation;
+		config.operation = op;
 		config.quota = 0;
 		config.mode = RateLimitMode::BLOCKING;
 		config.burst = value;
-		configs[operation] = config;
+		configs[op] = config;
 	} else {
 		it->second.burst = value;
 		// If both quota and burst are 0, remove the config
@@ -100,13 +127,14 @@ void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
 	}
 
 	// Update the rate limiter
-	auto &config = configs[operation];
+	auto &config = configs[op];
 	UpdateRateLimiter(config);
 }
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &operation) const {
+	auto op = StringUtil::Lower(operation);
 	lock_guard<mutex> guard(config_lock);
-	auto it = configs.find(operation);
+	auto it = configs.find(op);
 	if (it == configs.end()) {
 		return nullptr;
 	}
@@ -114,8 +142,9 @@ const OperationConfig *RateLimitConfig::GetConfig(const string &operation) const
 }
 
 SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &operation) {
+	auto op = StringUtil::Lower(operation);
 	lock_guard<mutex> guard(config_lock);
-	auto it = configs.find(operation);
+	auto it = configs.find(op);
 	if (it == configs.end()) {
 		return nullptr;
 	}
@@ -127,9 +156,10 @@ SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &operatio
 }
 
 vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
-	lock_guard<mutex> guard(config_lock);
 	vector<OperationConfig> result;
 	result.reserve(configs.size());
+	
+	lock_guard<mutex> guard(config_lock);
 	for (const auto &pair : configs) {
 		result.push_back(pair.second);
 	}
@@ -137,8 +167,9 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 }
 
 void RateLimitConfig::ClearConfig(const string &operation) {
+	auto op = StringUtil::Lower(operation);
 	lock_guard<mutex> guard(config_lock);
-	configs.erase(operation);
+	configs.erase(op);
 }
 
 void RateLimitConfig::ClearAll() {
@@ -164,7 +195,6 @@ void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
 	}
 
 	// Create new rate limiter with current settings
-	// Note: The Quota class handles the case where one of bandwidth/burst is 0
 	config.rate_limiter = CreateRateLimiter(config.quota, config.burst);
 }
 

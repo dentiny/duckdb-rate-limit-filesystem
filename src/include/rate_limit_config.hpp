@@ -26,6 +26,11 @@ RateLimitMode ParseRateLimitMode(const string &mode_str);
 // Converts RateLimitMode to string.
 string RateLimitModeToString(RateLimitMode mode);
 
+// Normalizes an operation name to lowercase and validates it.
+// Valid operations: open, stat, read, write, list, delete
+// Throws InvalidInputException for unknown operations.
+string NormalizeOperation(const string &operation);
+
 // Configuration for a single operation's rate limiting.
 struct OperationConfig {
 	// Operation name (e.g., "read", "write", "list")

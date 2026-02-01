@@ -10,13 +10,15 @@
 
 namespace duckdb {
 
-static void LoadInternal(ExtensionLoader &loader) {
+namespace duckdb {
+void LoadInternal(ExtensionLoader &loader) {
 	// Register rate limit configuration functions
 	loader.RegisterFunction(GetRateLimitFsQuotaFunction());
 	loader.RegisterFunction(GetRateLimitFsBurstFunction());
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
 }
+} // namespace duckdb
 
 void RateLimitFilesystemExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);

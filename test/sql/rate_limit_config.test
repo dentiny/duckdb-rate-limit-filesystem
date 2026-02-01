@@ -9,6 +9,18 @@ require rate_limit_filesystem
 # Invalid setting tests (error cases)
 # =============================================================================
 
+# Test error: invalid operation for quota
+statement error
+SELECT rate_limit_fs_quota('invalid_op', 1000, 'blocking');
+----
+Invalid operation
+
+# Test error: invalid operation for burst
+statement error
+SELECT rate_limit_fs_burst('unknown', 1000);
+----
+Invalid operation
+
 # Test error: invalid mode
 statement error
 SELECT rate_limit_fs_quota('read', 1000, 'invalid_mode');
@@ -26,6 +38,40 @@ statement error
 SELECT rate_limit_fs_burst('read', -100);
 ----
 Burst value must be non-negative
+
+# =============================================================================
+# Case-insensitive operation tests
+# =============================================================================
+
+# Test uppercase operation is normalized to lowercase
+query I
+SELECT rate_limit_fs_quota('READ', 1000, 'blocking');
+----
+READ
+
+# Verify it's stored as lowercase
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000	blocking	0
+
+# Test mixed case operation
+query I
+SELECT rate_limit_fs_burst('ReAd', 2000);
+----
+ReAd
+
+# Verify burst was added to existing lowercase entry (UPSERT)
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000	blocking	2000
+
+# Clear for next tests
+query I
+SELECT rate_limit_fs_clear('*');
+----
+all
 
 # =============================================================================
 # Valid configuration tests (SET - initial creation)
