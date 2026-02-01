@@ -120,7 +120,7 @@ static unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, Tab
 }
 
 static unique_ptr<GlobalTableFunctionState> RateLimitConfigsInit(ClientContext &context,
-                                                                  TableFunctionInitInput &input) {
+                                                                 TableFunctionInitInput &input) {
 	auto result = make_uniq<RateLimitConfigsData>();
 	auto config = RateLimitConfig::Get(context);
 	if (config) {
@@ -155,4 +155,3 @@ TableFunction GetRateLimitFsConfigsFunction() {
 }
 
 } // namespace duckdb
-

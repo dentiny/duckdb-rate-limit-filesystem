@@ -164,4 +164,3 @@ void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
 }
 
 } // namespace duckdb
-

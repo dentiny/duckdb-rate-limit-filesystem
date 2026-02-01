@@ -32,4 +32,3 @@ ScalarFunction GetRateLimitFsClearFunction();
 TableFunction GetRateLimitFsConfigsFunction();
 
 } // namespace duckdb
-
