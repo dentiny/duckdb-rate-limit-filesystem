@@ -105,10 +105,6 @@ public:
 	// Creates a shared rate limiter with the specified quota and optional clock.
 	static shared_ptr<RateLimiter> Direct(const Quota &quota_p, shared_ptr<BaseClock> clock_p = nullptr);
 
-	// Checks if n bytes can be transmitted now without waiting.
-	// Returns Allowed if allowed, or InsufficientCapacity if n exceeds burst (when burst limiting is enabled).
-	RateLimitResult Check(idx_t n) const;
-
 	// Waits until n bytes can be transmitted.
 	// Returns Allowed on success, InsufficientCapacity if n > burst (when burst limiting is enabled).
 	RateLimitResult UntilNReady(idx_t n);
@@ -134,9 +130,6 @@ private:
 
 	// Converts nanoseconds since epoch to a TimePoint.
 	static TimePoint FromNanos(int64_t nanos);
-
-	// Checks rate limit at a specific time point.
-	std::optional<WaitInfo> CheckAt(TimePoint now, idx_t n) const;
 
 	// Tries to acquire rate limit at a specific time point.
 	AcquireDecision TryAcquire(TimePoint now, idx_t n);

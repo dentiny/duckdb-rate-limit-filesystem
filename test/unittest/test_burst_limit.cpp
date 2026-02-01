@@ -45,16 +45,6 @@ TEST_CASE("Burst limit - zero byte request always passes", "[burst]") {
 	REQUIRE(result == RateLimitResult::Allowed);
 }
 
-TEST_CASE("Burst limit - Check method returns InsufficientCapacity for oversized request", "[burst]") {
-	auto clock = CreateMockClock();
-	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
-	auto limiter = RateLimiter::Direct(quota, clock);
-
-	// Check should return InsufficientCapacity for request exceeding burst
-	auto result = limiter->Check(200);
-	REQUIRE(result == RateLimitResult::InsufficientCapacity);
-}
-
 TEST_CASE("Burst limit - TryAcquireImmediate returns max wait for oversized request", "[burst]") {
 	auto clock = CreateMockClock();
 	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);

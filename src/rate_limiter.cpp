@@ -74,30 +74,6 @@ shared_ptr<RateLimiter> RateLimiter::Direct(const Quota &quota_p, shared_ptr<Bas
 	return make_shared_ptr<RateLimiter>(quota_p, clock_p);
 }
 
-RateLimitResult RateLimiter::Check(idx_t n) const {
-	if (n == 0) {
-		return RateLimitResult::Allowed;
-	}
-
-	// Check burst limit only if burst limiting is enabled
-	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
-		return RateLimitResult::InsufficientCapacity;
-	}
-
-	// If no rate limiting, always allowed
-	if (!quota.HasRateLimiting()) {
-		return RateLimitResult::Allowed;
-	}
-
-	auto now = clock->Now();
-	auto wait_info = CheckAt(now, n);
-
-	if (wait_info && wait_info->wait_duration > Duration::zero()) {
-		return RateLimitResult::Allowed; // Would need to wait but quota is valid
-	}
-	return RateLimitResult::Allowed;
-}
-
 RateLimitResult RateLimiter::UntilNReady(idx_t n) {
 	if (n == 0) {
 		return RateLimitResult::Allowed;
@@ -167,32 +143,6 @@ int64_t RateLimiter::ToNanos(TimePoint tp) {
 
 TimePoint RateLimiter::FromNanos(int64_t nanos) {
 	return TimePoint(Duration(nanos));
-}
-
-std::optional<WaitInfo> RateLimiter::CheckAt(TimePoint now, idx_t n) const {
-	auto emission_interval = quota.GetEmissionInterval();
-	auto delay_tolerance = quota.GetDelayTolerance();
-
-	int64_t now_nanos = ToNanos(now);
-	int64_t current_tat_nanos = state->GetTatNanos();
-
-	// Calculate the increment for n bytes
-	auto increment = emission_interval * n;
-	int64_t increment_nanos = std::chrono::duration_cast<Duration>(increment).count();
-
-	// Calculate the new TAT
-	int64_t new_tat_nanos = std::max(current_tat_nanos, now_nanos) + increment_nanos;
-
-	// Calculate the earliest time this request could complete
-	int64_t delay_tolerance_nanos = std::chrono::duration_cast<Duration>(delay_tolerance).count();
-	int64_t earliest_nanos = new_tat_nanos - delay_tolerance_nanos;
-
-	if (earliest_nanos > now_nanos) {
-		// Need to wait
-		return WaitInfo {FromNanos(earliest_nanos), Duration(earliest_nanos - now_nanos)};
-	}
-
-	return std::nullopt;
 }
 
 RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, idx_t n) {
