@@ -85,6 +85,7 @@ private:
 	void UpdateRateLimiter(OperationConfig &config);
 
 	mutable mutex config_lock;
+	// Maps from normalized operation name to its configuration.
 	unordered_map<string, OperationConfig> configs;
 };
 

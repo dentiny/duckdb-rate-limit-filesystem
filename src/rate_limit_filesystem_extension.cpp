@@ -10,7 +10,7 @@
 
 namespace duckdb {
 
-namespace duckdb {
+namespace {
 void LoadInternal(ExtensionLoader &loader) {
 	// Register rate limit configuration functions
 	loader.RegisterFunction(GetRateLimitFsQuotaFunction());
