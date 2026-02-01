@@ -1,6 +1,5 @@
 #pragma once
 
-#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/types.hpp"
@@ -8,6 +7,7 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/object_cache.hpp"
 
+#include "mutex.hpp"
 #include "rate_limit_mode.hpp"
 #include "rate_limiter.hpp"
 
@@ -82,11 +82,11 @@ public:
 
 private:
 	// Updates the rate limiter for an operation based on current config.
-	void UpdateRateLimiter(OperationConfig &config);
+	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);
 
-	mutable mutex config_lock;
+	mutable concurrency::mutex config_lock;
 	// Maps from normalized operation name to its configuration.
-	unordered_map<string, OperationConfig> configs;
+	unordered_map<string, OperationConfig> configs DUCKDB_GUARDED_BY(config_lock);
 };
 
 } // namespace duckdb
