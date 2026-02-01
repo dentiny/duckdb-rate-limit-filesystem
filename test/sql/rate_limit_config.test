@@ -5,6 +5,32 @@
 # Require the extension
 require rate_limit_filesystem
 
+# =============================================================================
+# Invalid setting tests (error cases)
+# =============================================================================
+
+# Test error: invalid mode
+statement error
+SELECT rate_limit_fs_quota('read', 1000, 'invalid_mode');
+----
+Invalid rate limit mode
+
+# Test error: negative quota
+statement error
+SELECT rate_limit_fs_quota('read', -100, 'blocking');
+----
+Quota value must be non-negative
+
+# Test error: negative burst
+statement error
+SELECT rate_limit_fs_burst('read', -100);
+----
+Burst value must be non-negative
+
+# =============================================================================
+# Valid configuration tests (SET - initial creation)
+# =============================================================================
+
 # Test setting a quota with blocking mode
 query I
 SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
@@ -16,6 +42,62 @@ query I
 SELECT rate_limit_fs_burst('read', 5000000);
 ----
 read
+
+# Test viewing the config
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000000	blocking	5000000
+
+# =============================================================================
+# UPSERT tests (UPDATE - modifying existing configs)
+# =============================================================================
+
+# Update quota value for existing operation
+query I
+SELECT rate_limit_fs_quota('read', 2000000, 'blocking');
+----
+read
+
+# Verify quota was updated, burst unchanged
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	blocking	5000000
+
+# Update mode for existing operation
+query I
+SELECT rate_limit_fs_quota('read', 2000000, 'non_blocking');
+----
+read
+
+# Verify mode was updated
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	non_blocking	5000000
+
+# Update burst value for existing operation
+query I
+SELECT rate_limit_fs_burst('read', 10000000);
+----
+read
+
+# Verify burst was updated, quota and mode unchanged
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	non_blocking	10000000
+
+# Verify only one config exists (UPSERT, not duplicate INSERT)
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+1
+
+# =============================================================================
+# Additional valid configuration tests
+# =============================================================================
 
 # Test setting quota with non-blocking mode
 query I
@@ -34,7 +116,7 @@ query ITIT
 SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
 ----
 list	100	non_blocking	0
-read	1000000	blocking	5000000
+read	2000000	non_blocking	10000000
 write	500000	non_blocking	0
 
 # Test setting burst-only config
@@ -69,21 +151,3 @@ query I
 SELECT COUNT(*) FROM rate_limit_fs_configs();
 ----
 0
-
-# Test error: invalid mode
-statement error
-SELECT rate_limit_fs_quota('read', 1000, 'invalid_mode');
-----
-Invalid rate limit mode
-
-# Test error: negative quota
-statement error
-SELECT rate_limit_fs_quota('read', -100, 'blocking');
-----
-Quota value must be non-negative
-
-# Test error: negative burst
-statement error
-SELECT rate_limit_fs_burst('read', -100);
-----
-Burst value must be non-negative
