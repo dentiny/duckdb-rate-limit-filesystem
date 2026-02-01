@@ -105,11 +105,11 @@ public:
 	// Creates a shared rate limiter with the specified quota and optional clock.
 	static shared_ptr<RateLimiter> Direct(const Quota &quota_p, shared_ptr<BaseClock> clock_p = nullptr);
 
-	// Waits until n bytes can be transmitted.
+	// Blocking mode: Waits until n bytes can be transmitted.
 	// Returns Allowed on success, InsufficientCapacity if n > burst (when burst limiting is enabled).
 	RateLimitResult UntilNReady(idx_t n);
 
-	// Tries to acquire permission for n bytes without waiting.
+	// Non-blocking mode: Tries to acquire permission for n bytes without waiting.
 	// Returns WaitInfo if waiting is required, nullopt if allowed immediately.
 	std::optional<WaitInfo> TryAcquireImmediate(idx_t n);
 

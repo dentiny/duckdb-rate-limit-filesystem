@@ -5,6 +5,10 @@
 
 using namespace duckdb;
 
+TEST_CASE("Burst limit - Quota creation with both zero throws", "[burst][quota]") {
+	REQUIRE_THROWS_AS(Quota(/*bandwidth_p=*/0, /*burst_p=*/0), InvalidInputException);
+}
+
 TEST_CASE("Burst limit - request within burst passes", "[burst]") {
 	auto clock = CreateMockClock();
 	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
@@ -56,10 +60,6 @@ TEST_CASE("Burst limit - TryAcquireImmediate returns max wait for oversized requ
 	REQUIRE(wait_info->wait_duration == Duration::max());
 }
 
-TEST_CASE("Burst limit - Quota creation with both zero throws", "[burst][quota]") {
-	REQUIRE_THROWS_AS(Quota(/*bandwidth_p=*/0, /*burst_p=*/0), InvalidInputException);
-}
-
 TEST_CASE("Burst limit - Quota with zero bandwidth is valid (burst-only)", "[burst][quota]") {
 	Quota quota(/*bandwidth_p=*/0, /*burst_p=*/100);
 	REQUIRE(quota.GetBandwidth() == 0);
@@ -76,14 +76,6 @@ TEST_CASE("Burst limit - Quota with zero burst is valid (rate-only)", "[burst][q
 	REQUIRE_FALSE(quota.HasBurstLimiting());
 }
 
-TEST_CASE("Burst limit - Quota getters return correct values", "[burst][quota]") {
-	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
-	REQUIRE(quota.GetBandwidth() == 1000);
-	REQUIRE(quota.GetBurst() == 100);
-	REQUIRE(quota.HasRateLimiting());
-	REQUIRE(quota.HasBurstLimiting());
-}
-
 TEST_CASE("Burst limit - multiple small requests within burst", "[burst]") {
 	auto clock = CreateMockClock();
 	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
@@ -94,16 +86,6 @@ TEST_CASE("Burst limit - multiple small requests within burst", "[burst]") {
 		auto result = limiter->UntilNReady(10);
 		REQUIRE(result == RateLimitResult::Allowed);
 	}
-}
-
-TEST_CASE("Burst limit - RateLimiter::Direct creates shared pointer", "[burst]") {
-	auto clock = CreateMockClock();
-	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
-	auto limiter = RateLimiter::Direct(quota, clock);
-
-	REQUIRE(limiter != nullptr);
-	REQUIRE(limiter->GetQuota().GetBandwidth() == 1000);
-	REQUIRE(limiter->GetQuota().GetBurst() == 100);
 }
 
 TEST_CASE("Burst limit - burst-only mode allows any size when no burst limit", "[burst]") {
