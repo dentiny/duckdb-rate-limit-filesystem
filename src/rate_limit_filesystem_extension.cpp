@@ -18,7 +18,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
 }
-} // namespace duckdb
+} // namespace
 
 void RateLimitFilesystemExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
