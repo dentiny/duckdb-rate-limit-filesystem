@@ -29,6 +29,8 @@ FileSystemOperation ParseFileSystemOperation(const string &op_str) {
 
 string FileSystemOperationToString(FileSystemOperation op) {
 	switch (op) {
+	case FileSystemOperation::NONE:
+		return "none";
 	case FileSystemOperation::STAT:
 		return "stat";
 	case FileSystemOperation::READ:

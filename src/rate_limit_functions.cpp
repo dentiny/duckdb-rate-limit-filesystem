@@ -27,8 +27,9 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    if (value < 0) {
 			    throw InvalidInputException("Quota value must be non-negative, got %lld", value);
 		    }
+		    auto op_enum = ParseFileSystemOperation(operation.GetString());
 		    auto mode_enum = ParseRateLimitMode(mode.GetString());
-		    config->SetQuota(operation.GetString(), static_cast<idx_t>(value), mode_enum);
+		    config->SetQuota(op_enum, static_cast<idx_t>(value), mode_enum);
 		    return operation;
 	    });
 }
@@ -49,7 +50,8 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    if (value < 0) {
 			    throw InvalidInputException("Burst value must be non-negative, got %lld", value);
 		    }
-		    config->SetBurst(operation.GetString(), static_cast<idx_t>(value));
+		    auto op_enum = ParseFileSystemOperation(operation.GetString());
+		    config->SetBurst(op_enum, static_cast<idx_t>(value));
 		    return operation;
 	    });
 }
@@ -70,7 +72,8 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 			config->ClearAll();
 			return StringVector::AddString(result, "all");
 		}
-		config->ClearConfig(op_str);
+		auto op_enum = ParseFileSystemOperation(op_str);
+		config->ClearConfig(op_enum);
 		return operation;
 	});
 }

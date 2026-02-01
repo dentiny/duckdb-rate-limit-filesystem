@@ -19,11 +19,6 @@ string RateLimitConfig::ObjectType() {
 	return OBJECT_TYPE;
 }
 
-void RateLimitConfig::SetQuota(const string &operation, idx_t value, RateLimitMode mode) {
-	auto op = ParseFileSystemOperation(operation);
-	SetQuota(op, value, mode);
-}
-
 void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateLimitMode mode) {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
@@ -53,11 +48,6 @@ void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateL
 	// Update the rate limiter
 	auto &config = configs[operation];
 	UpdateRateLimiter(config);
-}
-
-void RateLimitConfig::SetBurst(const string &operation, idx_t value) {
-	auto op = ParseFileSystemOperation(operation);
-	SetBurst(op, value);
 }
 
 void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
@@ -121,11 +111,6 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 		result.push_back(pair.second);
 	}
 	return result;
-}
-
-void RateLimitConfig::ClearConfig(const string &operation) {
-	auto op = ParseFileSystemOperation(operation);
-	ClearConfig(op);
 }
 
 void RateLimitConfig::ClearConfig(FileSystemOperation operation) {

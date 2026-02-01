@@ -33,7 +33,7 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 // RateLimitFileSystem
 //------------------------------------------------------------------------------
 
-RateLimitFileSystem::RateLimitFileSystem(shared_ptr<FileSystem> inner_fs_p) : inner_fs(std::move(inner_fs_p)) {
+RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p) : inner_fs(std::move(inner_fs_p)) {
 }
 
 RateLimitFileSystem::RateLimitFileSystem() : inner_fs(FileSystem::CreateLocal()) {

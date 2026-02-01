@@ -32,8 +32,8 @@ void RemoveTempFile(const string &path) {
 } // namespace
 
 TEST_CASE("RateLimitFileSystem - basic operations without rate limiting", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	string test_content = "Hello, World!";
 	string temp_path = CreateTempFile(test_content);
@@ -70,8 +70,8 @@ TEST_CASE("RateLimitFileSystem - basic operations without rate limiting", "[rate
 }
 
 TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);
@@ -111,8 +111,8 @@ TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") 
 
 TEST_CASE("RateLimitFileSystem - non-blocking mode throws on rate limit", "[rate_limit_fs]") {
 	auto mock_clock = CreateMockClock();
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);
@@ -157,15 +157,16 @@ TEST_CASE("RateLimitFileSystem - GetConfig and SetConfig", "[rate_limit_fs]") {
 }
 
 TEST_CASE("RateLimitFileSystem - GetInnerFileSystem", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	auto *inner_fs_ptr = inner_fs.get();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
-	REQUIRE(&fs.GetInnerFileSystem() == inner_fs.get());
+	REQUIRE(&fs.GetInnerFileSystem() == inner_fs_ptr);
 }
 
 TEST_CASE("RateLimitFileSystem - list operations rate limiting", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);
@@ -181,8 +182,8 @@ TEST_CASE("RateLimitFileSystem - list operations rate limiting", "[rate_limit_fs
 }
 
 TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);
@@ -204,8 +205,8 @@ TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_f
 }
 
 TEST_CASE("RateLimitFileSystem - delete operations rate limiting", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);
@@ -223,8 +224,8 @@ TEST_CASE("RateLimitFileSystem - delete operations rate limiting", "[rate_limit_
 }
 
 TEST_CASE("RateLimitFileSystem - burst exceeds check", "[rate_limit_fs]") {
-	auto inner_fs = make_shared_ptr<LocalFileSystem>();
-	RateLimitFileSystem fs(inner_fs);
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs));
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	fs.SetConfig(config);

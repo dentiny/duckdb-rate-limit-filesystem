@@ -28,7 +28,7 @@ struct OperationConfig {
 	SharedRateLimiter rate_limiter;
 
 	OperationConfig()
-	    : operation(FileSystemOperation::READ), quota(0), mode(RateLimitMode::BLOCKING), burst(0),
+	    : operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::BLOCKING), burst(0),
 	      rate_limiter(nullptr) {
 	}
 };
@@ -49,16 +49,10 @@ public:
 	// Static method for ObjectCache::Get compatibility.
 	static string ObjectType();
 
-	// Sets the quota for an operation (string version for SQL interface).
-	void SetQuota(const string &operation, idx_t value, RateLimitMode mode);
-
-	// Sets the quota for an operation (enum version for C++ usage).
+	// Sets the quota for an operation.
 	void SetQuota(FileSystemOperation operation, idx_t value, RateLimitMode mode);
 
-	// Sets the burst for an operation (string version for SQL interface).
-	void SetBurst(const string &operation, idx_t value);
-
-	// Sets the burst for an operation (enum version for C++ usage).
+	// Sets the burst for an operation.
 	void SetBurst(FileSystemOperation operation, idx_t value);
 
 	// Gets the configuration for an operation. Returns nullptr if not configured.
@@ -70,10 +64,7 @@ public:
 	// Returns all configured operations.
 	vector<OperationConfig> GetAllConfigs() const;
 
-	// Clears the configuration for an operation (string version).
-	void ClearConfig(const string &operation);
-
-	// Clears the configuration for an operation (enum version).
+	// Clears the configuration for an operation.
 	void ClearConfig(FileSystemOperation operation);
 
 	// Clears all configurations.

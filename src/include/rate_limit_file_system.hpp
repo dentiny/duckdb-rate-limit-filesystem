@@ -32,7 +32,7 @@ private:
 class RateLimitFileSystem : public FileSystem {
 public:
 	// Creates a rate limit file system wrapping the given inner file system.
-	explicit RateLimitFileSystem(shared_ptr<FileSystem> inner_fs_p);
+	explicit RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p);
 
 	// Creates a rate limit file system wrapping a new local file system.
 	RateLimitFileSystem();
@@ -106,7 +106,7 @@ private:
 	// Extracts the inner file handle from a potentially wrapped handle.
 	FileHandle &GetInnerFileHandle(FileHandle &handle);
 
-	shared_ptr<FileSystem> inner_fs;
+	unique_ptr<FileSystem> inner_fs;
 	shared_ptr<RateLimitConfig> config;
 };
 
