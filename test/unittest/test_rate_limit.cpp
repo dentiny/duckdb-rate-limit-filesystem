@@ -7,8 +7,7 @@ using namespace duckdb;
 
 TEST_CASE("Rate limit - first request within burst passes immediately", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	Quota quota(100, 100);
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request should pass immediately
@@ -18,9 +17,8 @@ TEST_CASE("Rate limit - first request within burst passes immediately", "[rate]"
 
 TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	// This means: 1 byte takes 10ms (1000ms / 100 bytes)
-	Quota quota(100, 100);
+	// 1 byte takes 10ms (1000ms / 100 bytes)
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request for 100 bytes (uses full burst)
@@ -35,8 +33,7 @@ TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 
 TEST_CASE("Rate limit - quota replenishes over time", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	Quota quota(100, 100);
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Use full burst
@@ -57,8 +54,7 @@ TEST_CASE("Rate limit - quota replenishes over time", "[rate]") {
 
 TEST_CASE("Rate limit - partial quota replenishment", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	Quota quota(100, 100);
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Use full burst
@@ -74,8 +70,7 @@ TEST_CASE("Rate limit - partial quota replenishment", "[rate]") {
 
 TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	Quota quota(100, 100);
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	TimePoint start_time = clock->Now();
@@ -95,8 +90,7 @@ TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 
 TEST_CASE("Rate limit - small requests accumulate correctly", "[rate]") {
 	auto clock = CreateMockClock();
-	// 100 bytes/sec, 100 byte burst
-	Quota quota(100, 100);
+	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Make 10 requests of 10 bytes each (total 100 bytes = full burst)
@@ -111,8 +105,8 @@ TEST_CASE("Rate limit - small requests accumulate correctly", "[rate]") {
 }
 
 TEST_CASE("Rate limit - emission interval calculation", "[rate][quota]") {
-	// 1000 bytes/sec, 100 byte burst -> 1ms per byte
-	Quota quota(1000, 100);
+	// 1000 bytes/sec -> 1ms per byte
+	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
 
 	auto emission_interval = quota.GetEmissionInterval();
 	auto expected = std::chrono::duration_cast<Duration>(std::chrono::milliseconds(1));
@@ -122,7 +116,7 @@ TEST_CASE("Rate limit - emission interval calculation", "[rate][quota]") {
 
 TEST_CASE("Rate limit - delay tolerance calculation", "[rate][quota]") {
 	// 1000 bytes/sec, 100 byte burst -> delay tolerance = 100ms
-	Quota quota(1000, 100);
+	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/100);
 
 	auto delay_tolerance = quota.GetDelayTolerance();
 	auto expected = std::chrono::duration_cast<Duration>(std::chrono::milliseconds(100));
@@ -132,9 +126,8 @@ TEST_CASE("Rate limit - delay tolerance calculation", "[rate][quota]") {
 
 TEST_CASE("Rate limit - high bandwidth low burst scenario", "[rate]") {
 	auto clock = CreateMockClock();
-	// 10000 bytes/sec, 100 byte burst
 	// Can only do 100 byte requests at a time, but they process quickly
-	Quota quota(10000, 100);
+	Quota quota(/*bandwidth_p=*/10000, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First request passes
@@ -151,9 +144,8 @@ TEST_CASE("Rate limit - high bandwidth low burst scenario", "[rate]") {
 
 TEST_CASE("Rate limit - low bandwidth high burst scenario", "[rate]") {
 	auto clock = CreateMockClock();
-	// 10 bytes/sec, 1000 byte burst
 	// Can do large requests but they take a long time to replenish
-	Quota quota(10, 1000);
+	Quota quota(/*bandwidth_p=*/10, /*burst_p=*/1000);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// First large request passes (uses burst capacity)
@@ -170,8 +162,7 @@ TEST_CASE("Rate limit - low bandwidth high burst scenario", "[rate]") {
 
 TEST_CASE("Rate limit - concurrent-style requests with mock clock", "[rate]") {
 	auto clock = CreateMockClock();
-	// 1000 bytes/sec, 500 byte burst
-	Quota quota(1000, 500);
+	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/500);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
 	// Request 1: 200 bytes
@@ -197,7 +188,7 @@ TEST_CASE("Rate limit - concurrent-style requests with mock clock", "[rate]") {
 TEST_CASE("Rate limit - CreateRateLimiter helper function", "[rate]") {
 	auto clock = CreateMockClock();
 
-	auto limiter = CreateRateLimiter(100, 100, clock);
+	auto limiter = CreateRateLimiter(/*bandwidth_p=*/100, /*burst_p=*/100, clock);
 
 	REQUIRE(limiter != nullptr);
 	REQUIRE(limiter->GetQuota().GetBandwidth() == 100);
