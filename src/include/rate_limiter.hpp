@@ -20,17 +20,28 @@ shared_ptr<BaseClock> CreateDefaultClock();
 
 // Represents a rate limiting quota configuration.
 // Defines the bandwidth (bytes per second) and burst size (maximum bytes allowed at once).
+//
+// Behavior:
+// - bandwidth = 0: no rate limiting (requests pass immediately without timing)
+// - burst = 0: no burst limiting (any request size allowed)
+// - both = 0: error (nothing to limit)
 class Quota {
 public:
 	// Creates a quota with the specified bandwidth and burst.
-	// Throws InvalidInputException if bandwidth or burst is 0.
+	// Throws InvalidInputException if both bandwidth and burst are 0.
 	Quota(idx_t bandwidth_p, idx_t burst_p);
 
-	// Returns the bandwidth in bytes per second.
+	// Returns the bandwidth in bytes per second (0 means no rate limiting).
 	idx_t GetBandwidth() const;
 
-	// Returns the burst size in bytes.
+	// Returns the burst size in bytes (0 means no burst limiting).
 	idx_t GetBurst() const;
+
+	// Returns true if rate limiting is enabled (bandwidth > 0).
+	bool HasRateLimiting() const;
+
+	// Returns true if burst limiting is enabled (burst > 0).
+	bool HasBurstLimiting() const;
 
 	// Returns the emission interval (time between each byte).
 	Duration GetEmissionInterval() const;
@@ -95,11 +106,11 @@ public:
 	static shared_ptr<RateLimiter> Direct(const Quota &quota_p, shared_ptr<BaseClock> clock_p = nullptr);
 
 	// Checks if n bytes can be transmitted now without waiting.
-	// Returns Allowed if allowed, or InsufficientCapacity if n exceeds burst.
+	// Returns Allowed if allowed, or InsufficientCapacity if n exceeds burst (when burst limiting is enabled).
 	RateLimitResult Check(idx_t n) const;
 
-	// Waits until n bytes can be transmitted. The request must be <= burst size.
-	// Returns Allowed on success, InsufficientCapacity if n > burst.
+	// Waits until n bytes can be transmitted.
+	// Returns Allowed on success, InsufficientCapacity if n > burst (when burst limiting is enabled).
 	RateLimitResult UntilNReady(idx_t n);
 
 	// Tries to acquire permission for n bytes without waiting.

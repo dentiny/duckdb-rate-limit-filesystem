@@ -9,11 +9,8 @@ namespace duckdb {
 //===--------------------------------------------------------------------===//
 
 Quota::Quota(idx_t bandwidth_p, idx_t burst_p) : bandwidth(bandwidth_p), burst(burst_p) {
-	if (bandwidth_p == 0) {
-		throw InvalidInputException("bandwidth must be greater than 0");
-	}
-	if (burst_p == 0) {
-		throw InvalidInputException("burst must be greater than 0");
+	if (bandwidth_p == 0 && burst_p == 0) {
+		throw InvalidInputException("at least one of bandwidth or burst must be greater than 0");
 	}
 }
 
@@ -25,12 +22,26 @@ idx_t Quota::GetBurst() const {
 	return burst;
 }
 
+bool Quota::HasRateLimiting() const {
+	return bandwidth > 0;
+}
+
+bool Quota::HasBurstLimiting() const {
+	return burst > 0;
+}
+
 Duration Quota::GetEmissionInterval() const {
+	if (bandwidth == 0) {
+		return Duration::zero();
+	}
 	// Time per byte = 1 second / bandwidth
 	return std::chrono::duration_cast<Duration>(std::chrono::seconds(1)) / bandwidth;
 }
 
 Duration Quota::GetDelayTolerance() const {
+	if (bandwidth == 0 || burst == 0) {
+		return Duration::max();
+	}
 	// Delay tolerance = burst * emission_interval
 	auto emission_interval = GetEmissionInterval();
 	return emission_interval * burst;
@@ -67,8 +78,15 @@ RateLimitResult RateLimiter::Check(idx_t n) const {
 	if (n == 0) {
 		return RateLimitResult::Allowed;
 	}
-	if (n > quota.GetBurst()) {
+
+	// Check burst limit only if burst limiting is enabled
+	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
 		return RateLimitResult::InsufficientCapacity;
+	}
+
+	// If no rate limiting, always allowed
+	if (!quota.HasRateLimiting()) {
+		return RateLimitResult::Allowed;
 	}
 
 	auto now = clock->Now();
@@ -84,8 +102,15 @@ RateLimitResult RateLimiter::UntilNReady(idx_t n) {
 	if (n == 0) {
 		return RateLimitResult::Allowed;
 	}
-	if (n > quota.GetBurst()) {
+
+	// Check burst limit only if burst limiting is enabled
+	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
 		return RateLimitResult::InsufficientCapacity;
+	}
+
+	// If no rate limiting, always allowed immediately
+	if (!quota.HasRateLimiting()) {
+		return RateLimitResult::Allowed;
 	}
 
 	while (true) {
@@ -107,9 +132,16 @@ std::optional<WaitInfo> RateLimiter::TryAcquireImmediate(idx_t n) {
 	if (n == 0) {
 		return std::nullopt;
 	}
-	if (n > quota.GetBurst()) {
+
+	// Check burst limit only if burst limiting is enabled
+	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
 		// Return max wait to indicate insufficient capacity
 		return WaitInfo {TimePoint::max(), Duration::max()};
+	}
+
+	// If no rate limiting, always allowed immediately
+	if (!quota.HasRateLimiting()) {
+		return std::nullopt;
 	}
 
 	auto now = clock->Now();

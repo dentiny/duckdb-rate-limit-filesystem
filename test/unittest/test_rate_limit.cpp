@@ -194,3 +194,51 @@ TEST_CASE("Rate limit - CreateRateLimiter helper function", "[rate]") {
 	REQUIRE(limiter->GetQuota().GetBandwidth() == 100);
 	REQUIRE(limiter->GetQuota().GetBurst() == 100);
 }
+
+TEST_CASE("Rate limit - no rate limiting mode passes immediately", "[rate]") {
+	auto clock = CreateMockClock();
+	// No rate limiting (bandwidth=0), only burst limiting
+	Quota quota(/*bandwidth_p=*/0, /*burst_p=*/100);
+	auto limiter = RateLimiter::Direct(quota, clock);
+
+	TimePoint start_time = clock->Now();
+
+	// Multiple requests should pass immediately without advancing clock
+	for (int i = 0; i < 100; i++) {
+		auto result = limiter->UntilNReady(50);
+		REQUIRE(result == RateLimitResult::Allowed);
+	}
+
+	TimePoint end_time = clock->Now();
+
+	// No time should have passed (no rate limiting)
+	REQUIRE(start_time == end_time);
+}
+
+TEST_CASE("Rate limit - no burst limiting mode allows large requests", "[rate]") {
+	auto clock = CreateMockClock();
+	// No burst limiting (burst=0), only rate limiting
+	Quota quota(/*bandwidth_p=*/1000, /*burst_p=*/0);
+	auto limiter = RateLimiter::Direct(quota, clock);
+
+	// Very large request should pass (no burst limit)
+	auto result = limiter->UntilNReady(1000000);
+	REQUIRE(result == RateLimitResult::Allowed);
+}
+
+TEST_CASE("Rate limit - emission interval is zero when no rate limiting", "[rate][quota]") {
+	Quota quota(/*bandwidth_p=*/0, /*burst_p=*/100);
+
+	auto emission_interval = quota.GetEmissionInterval();
+	REQUIRE(emission_interval == Duration::zero());
+}
+
+TEST_CASE("Rate limit - delay tolerance is max when no burst or rate limiting component", "[rate][quota]") {
+	// No burst limiting
+	Quota quota1(/*bandwidth_p=*/1000, /*burst_p=*/0);
+	REQUIRE(quota1.GetDelayTolerance() == Duration::max());
+
+	// No rate limiting
+	Quota quota2(/*bandwidth_p=*/0, /*burst_p=*/100);
+	REQUIRE(quota2.GetDelayTolerance() == Duration::max());
+}
