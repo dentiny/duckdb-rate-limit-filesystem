@@ -2,16 +2,17 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "no_destructor.hpp"
 
 namespace duckdb {
 
 namespace {
 
 // Valid filesystem operations that can be rate limited
-const vector<string> VALID_OPERATIONS = {"open", "stat", "read", "write", "list", "delete"};
+const NoDestructor<vector<string>> VALID_OPERATIONS {{"open", "stat", "read", "write", "list", "delete"}};
 
 bool IsValidOperation(const string &op) {
-	for (const auto &valid_op : VALID_OPERATIONS) {
+	for (const auto &valid_op : *VALID_OPERATIONS) {
 		if (op == valid_op) {
 			return true;
 		}
