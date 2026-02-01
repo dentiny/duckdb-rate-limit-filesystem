@@ -21,7 +21,6 @@ static void LoadInternal(ExtensionLoader &loader) {
 void RateLimitFilesystemExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-
 std::string RateLimitFilesystemExtension::Name() {
 	return "rate_limit_filesystem";
 }
@@ -42,4 +41,3 @@ DUCKDB_CPP_EXTENSION_ENTRY(rate_limit_filesystem, loader) {
 	duckdb::LoadInternal(loader);
 }
 }
-
