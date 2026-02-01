@@ -27,7 +27,4 @@ FileSystemOperation ParseFileSystemOperation(const string &op_str);
 // Converts FileSystemOperation to string (lowercase).
 string FileSystemOperationToString(FileSystemOperation op);
 
-// Returns the list of valid operation names as a comma-separated string.
-string GetValidOperationsString();
-
 } // namespace duckdb

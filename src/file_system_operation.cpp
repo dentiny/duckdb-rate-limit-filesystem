@@ -5,6 +5,14 @@
 
 namespace duckdb {
 
+namespace {
+
+string GetValidOperationsString() {
+	return "stat, read, write, list, delete";
+}
+
+} // namespace
+
 FileSystemOperation ParseFileSystemOperation(const string &op_str) {
 	auto lower = StringUtil::Lower(op_str);
 
@@ -44,10 +52,6 @@ string FileSystemOperationToString(FileSystemOperation op) {
 	default:
 		throw InternalException("Unknown FileSystemOperation value");
 	}
-}
-
-string GetValidOperationsString() {
-	return "stat, read, write, list, delete";
 }
 
 } // namespace duckdb
