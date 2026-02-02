@@ -137,13 +137,13 @@ TEST_CASE("RateLimitFileSystem - GetName returns correct name", "[rate_limit_fs]
 	REQUIRE(fs.GetName() == "RateLimitFileSystem");
 }
 
-TEST_CASE("RateLimitFileSystem - GetInnerFileSystem", "[rate_limit_fs]") {
+TEST_CASE("RateLimitFileSystem - Rate limit filesystem", "[rate_limit_fs]") {
 	auto config = make_shared_ptr<RateLimitConfig>();
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	auto *inner_fs_ptr = inner_fs.get();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
 
-	REQUIRE(&fs.GetInnerFileSystem() == inner_fs_ptr);
+	// Make sure we can cast to RateLimitFileSystem
+	[[maybe_unused]] auto &casted = fs.Cast<RateLimitFileSystem>();
 }
 
 TEST_CASE("RateLimitFileSystem - list operations rate limiting", "[rate_limit_fs]") {

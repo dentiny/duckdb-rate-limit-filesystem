@@ -1,7 +1,6 @@
 #include "rate_limit_file_system.hpp"
 
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/helper_functions.hpp"
 #include "duckdb/common/local_file_system.hpp"
 
 #include <thread>
@@ -36,24 +35,22 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 
 RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p)
     : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
+	if (!config) {
+		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
+	}
 }
 
 RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
     : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)) {
+	if (!config) {
+		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
+	}
 }
 
 RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
-FileSystem &RateLimitFileSystem::GetInnerFileSystem() const {
-	return *inner_fs;
-}
-
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	if (!config) {
-		return;
-	}
-
 	auto rate_limiter = config->GetOrCreateRateLimiter(operation);
 	if (!rate_limiter) {
 		return;

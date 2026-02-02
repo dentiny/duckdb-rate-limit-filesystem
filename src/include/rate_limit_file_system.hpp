@@ -44,9 +44,6 @@ public:
 
 	~RateLimitFileSystem() override;
 
-	// Returns the inner file system.
-	FileSystem &GetInnerFileSystem() const;
-
 	// ==========================================================================
 	// Rate limited operations
 	// ==========================================================================
