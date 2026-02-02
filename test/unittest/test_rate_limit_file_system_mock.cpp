@@ -17,7 +17,7 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs_mock";
-constexpr const char *TEST_FS_NAME = "LocalFileSystem";
+constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
 string CreateTempFile(const string &dir, const string &filename, const string &content) {

@@ -12,7 +12,8 @@ using namespace duckdb;
 namespace {
 
 constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs";
-constexpr const char *TEST_FS_NAME = "LocalFileSystem";
+// Wrapped filesystem name used for config lookups (RateLimitFileSystem uses GetName() internally)
+constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
 string CreateTempFile(const string &dir, const string &filename, const string &content) {

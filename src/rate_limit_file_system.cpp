@@ -45,12 +45,12 @@ RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(inner_fs->GetName(), operation);
+	auto rate_limiter = config->GetOrCreateRateLimiter(GetName(), operation);
 	if (!rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(inner_fs->GetName(), operation);
+	const auto *op_config = config->GetConfig(GetName(), operation);
 	if (!op_config) {
 		return;
 	}

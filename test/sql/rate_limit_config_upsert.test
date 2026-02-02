@@ -4,17 +4,23 @@
 
 require rate_limit_filesystem
 
+# First wrap the fake filesystem so rate limiting can be applied
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
 # =============================================================================
 # Setup initial config
 # =============================================================================
 
 query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
 ----
 true
 
 query I
-SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'read', 5000000);
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 5000000);
 ----
 true
 
@@ -24,7 +30,7 @@ true
 
 # Update quota value for existing operation
 query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 2000000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 2000000, 'blocking');
 ----
 true
 
@@ -32,11 +38,11 @@ true
 query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFsFakeFileSystem	read	2000000	blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	blocking	5000000
 
 # Update mode for existing operation
 query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 2000000, 'non_blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 2000000, 'non_blocking');
 ----
 true
 
@@ -44,11 +50,11 @@ true
 query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFsFakeFileSystem	read	2000000	non_blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	5000000
 
 # Update burst value for existing operation
 query I
-SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'read', 10000000);
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 10000000);
 ----
 true
 
@@ -56,7 +62,7 @@ true
 query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFsFakeFileSystem	read	2000000	non_blocking	10000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	10000000
 
 # Verify only one config exists (UPSERT, not duplicate INSERT)
 query I
@@ -70,12 +76,12 @@ SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
 
 # Add more configs for clear tests
 query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'write', 500000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 500000, 'blocking');
 ----
 true
 
 query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'list', 100, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'list', 100, 'blocking');
 ----
 true
 
@@ -87,7 +93,7 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 
 # Test clearing a specific operation for a filesystem
 query I
-SELECT rate_limit_fs_clear('RateLimitFsFakeFileSystem', 'read');
+SELECT rate_limit_fs_clear('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read');
 ----
 true
 
@@ -104,12 +110,12 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 
 # Test clearing all configs for a filesystem
 query I
-SELECT rate_limit_fs_clear('RateLimitFsFakeFileSystem', '*');
+SELECT rate_limit_fs_clear('RateLimitFileSystem - RateLimitFsFakeFileSystem', '*');
 ----
 true
 
 query I
-SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
 ----
 0
 
