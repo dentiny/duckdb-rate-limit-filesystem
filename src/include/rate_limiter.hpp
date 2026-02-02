@@ -110,7 +110,13 @@ public:
 	RateLimitResult UntilNReady(idx_t n);
 
 	// Non-blocking mode: Tries to acquire permission for n bytes without waiting.
-	// Returns WaitInfo if waiting is required, nullopt if allowed immediately.
+	//
+	// Return values:
+	// - std::nullopt: Operation is allowed immediately
+	// - WaitInfo with wait_duration < Duration::max(): Rate limit would be exceeded, waiting required
+	//   The wait_duration indicates how long to wait before the operation can proceed
+	// - WaitInfo with wait_duration == Duration::max(): Burst capacity is exceeded
+	//   This indicates the request size (n) exceeds the configured burst limit and cannot proceed
 	std::optional<WaitInfo> TryAcquireImmediate(idx_t n);
 
 	// Returns the configured quota.
