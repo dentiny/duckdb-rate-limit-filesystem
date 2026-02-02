@@ -21,9 +21,8 @@ string RateLimitConfig::ObjectType() {
 
 void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperation operation, idx_t value,
                                RateLimitMode mode) {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
-
 	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
@@ -58,9 +57,8 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 		                            FileSystemOperationToString(operation));
 	}
 
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
-
 	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
@@ -88,8 +86,8 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 }
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name, FileSystemOperation operation) const {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return nullptr;
@@ -99,8 +97,8 @@ const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name,
 
 SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesystem_name,
                                                           FileSystemOperation operation) {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return nullptr;
@@ -136,8 +134,8 @@ vector<OperationConfig> RateLimitConfig::GetConfigsForFilesystem(const string &f
 }
 
 void RateLimitConfig::ClearConfig(const string &filesystem_name, FileSystemOperation operation) {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	configs.erase(key);
 }
 
