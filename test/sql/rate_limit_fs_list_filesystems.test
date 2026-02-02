@@ -8,17 +8,17 @@ require rate_limit_filesystem
 statement ok
 SELECT * FROM rate_limit_fs_list_filesystems();
 
-# List filesystems should return at least LocalFileSystem
+# List filesystems should return at least RateLimitFsFakeFileSystem
 query I
-SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem';
+SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
 ----
 true
 
 # The result should have a 'name' column
 query I
-SELECT name FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem' LIMIT 1;
+SELECT name FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem' LIMIT 1;
 ----
-LocalFileSystem
+RateLimitFsFakeFileSystem
 
 # Fake filesystem should be auto-registered when extension loads
 query I

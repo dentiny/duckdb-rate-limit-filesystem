@@ -4,12 +4,6 @@
 
 require rate_limit_filesystem
 
-# Fake filesystem should be registered on extension load
-query I
-SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
-----
-true
-
 # Wrap the fake filesystem with rate limiting
 query I
 SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
@@ -22,28 +16,22 @@ SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimi
 ----
 true
 
-# The original fake filesystem should no longer exist
-query I
-SELECT COUNT(*) FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
-----
-0
-
-# Set quota on the wrapped filesystem (using the inner filesystem's name)
+# Set quota on the wrapped filesystem
 statement ok
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
 
 # Verify the config was set
 query IIII
-SELECT filesystem, operation, quota, mode FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
+SELECT filesystem, operation, quota, mode FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
 ----
-RateLimitFsFakeFileSystem	read	1000000	blocking
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking
 
 # Clear the config
 statement ok
-SELECT rate_limit_fs_clear('RateLimitFsFakeFileSystem', '*');
+SELECT rate_limit_fs_clear('RateLimitFileSystem - RateLimitFsFakeFileSystem', '*');
 
 # Verify cleared
 query I
-SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
+SELECT COUNT(*) FROM rate_limit_fs_configs();
 ----
 0

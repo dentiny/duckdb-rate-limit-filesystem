@@ -3,6 +3,7 @@
 #include "duckdb/common/algorithm.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/common/opener_file_system.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
 #include "file_system_operation.hpp"
@@ -13,21 +14,45 @@ namespace duckdb {
 
 namespace {
 
-// Helper to validate that a filesystem exists
+// Helper to get the VirtualFileSystem from context
+FileSystem &GetVirtualFileSystem(ClientContext &context) {
+	auto &db = DatabaseInstance::GetDatabase(context);
+	auto &opener_fs = db.GetFileSystem().Cast<OpenerFileSystem>();
+	return opener_fs.GetFileSystem();
+}
+
+// Prefix used by RateLimitFileSystem::GetName()
+static constexpr const char *RATE_LIMIT_FS_PREFIX = "RateLimitFileSystem - ";
+
+// Helper to extract the inner filesystem name from a potentially wrapped name.
+// If the name starts with "RateLimitFileSystem - ", strips the prefix.
+// Otherwise, returns the name as-is.
+string GetInnerFilesystemName(const string &fs_name) {
+	if (StringUtil::StartsWith(fs_name, RATE_LIMIT_FS_PREFIX)) {
+		return fs_name.substr(strlen(RATE_LIMIT_FS_PREFIX));
+	}
+	return fs_name;
+}
+
+// Helper to validate that a filesystem exists (accepts both wrapped and inner names)
 void ValidateFilesystemExists(ClientContext &context, const string &fs_name) {
-	auto &fs = FileSystem::GetFileSystem(context);
-	auto filesystems = fs.ListSubSystems();
-	bool found = false;
+	auto &vfs = GetVirtualFileSystem(context);
+	auto filesystems = vfs.ListSubSystems();
+	// Check for exact match or wrapped match
 	for (const auto &name : filesystems) {
 		if (name == fs_name) {
-			found = true;
-			break;
+			return;
+		}
+		// Also check if fs_name is the inner name of a wrapped filesystem
+		if (StringUtil::StartsWith(name, RATE_LIMIT_FS_PREFIX)) {
+			string inner_name = name.substr(strlen(RATE_LIMIT_FS_PREFIX));
+			if (inner_name == fs_name) {
+				return;
+			}
 		}
 	}
-	if (!found) {
-		throw InvalidInputException(
-		    "Filesystem '%s' not found. Use rate_limit_fs_list_filesystems() to see available filesystems.", fs_name);
-	}
+	throw InvalidInputException(
+	    "Filesystem '%s' not found. Use rate_limit_fs_list_filesystems() to see available filesystems.", fs_name);
 }
 
 //===--------------------------------------------------------------------===//
@@ -62,6 +87,8 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 
 		string fs_str = fs_names[fs_idx].GetString();
 		ValidateFilesystemExists(context, fs_str);
+		// Normalize to inner filesystem name for config storage
+		string inner_fs_name = GetInnerFilesystemName(fs_str);
 
 		int64_t value = values[val_idx];
 		if (value < 0) {
@@ -70,7 +97,7 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 
 		auto op_enum = ParseFileSystemOperation(operations[op_idx].GetString());
 		auto mode_enum = ParseRateLimitMode(modes[mode_idx].GetString());
-		config->SetQuota(fs_str, op_enum, static_cast<idx_t>(value), mode_enum);
+		config->SetQuota(inner_fs_name, op_enum, static_cast<idx_t>(value), mode_enum);
 
 		result.SetValue(i, Value(true));
 	}
@@ -93,11 +120,13 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 	    [&](string_t fs_name, string_t operation, int64_t value) {
 		    string fs_str = fs_name.GetString();
 		    ValidateFilesystemExists(context, fs_str);
+		    // Normalize to inner filesystem name for config storage
+		    string inner_fs_name = GetInnerFilesystemName(fs_str);
 		    if (value < 0) {
 			    throw InvalidInputException("Burst value must be non-negative, got %lld", value);
 		    }
 		    auto op_enum = ParseFileSystemOperation(operation.GetString());
-		    config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
+		    config->SetBurst(inner_fs_name, op_enum, static_cast<idx_t>(value));
 		    return true;
 	    });
 }
@@ -125,13 +154,16 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 			                                                  return true;
 		                                                  }
 
+		                                                  // Normalize to inner filesystem name for config storage
+		                                                  string inner_fs_name = GetInnerFilesystemName(fs_str);
+
 		                                                  if (op_str == "*") {
-			                                                  config->ClearFilesystem(fs_str);
+			                                                  config->ClearFilesystem(inner_fs_name);
 			                                                  return true;
 		                                                  }
 
 		                                                  auto op_enum = ParseFileSystemOperation(op_str);
-		                                                  config->ClearConfig(fs_str, op_enum);
+		                                                  config->ClearConfig(inner_fs_name, op_enum);
 		                                                  return true;
 	                                                  });
 }
@@ -140,8 +172,23 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 // rate_limit_fs_configs() - Table Function
 //===--------------------------------------------------------------------===//
 
+// Helper to get the display name for a filesystem.
+// If a wrapped version exists in the VFS, returns the wrapped name.
+string GetDisplayFilesystemName(ClientContext &context, const string &inner_name) {
+	auto &vfs = GetVirtualFileSystem(context);
+	auto filesystems = vfs.ListSubSystems();
+	string wrapped_name = string(RATE_LIMIT_FS_PREFIX) + inner_name;
+	for (const auto &name : filesystems) {
+		if (name == wrapped_name) {
+			return wrapped_name;
+		}
+	}
+	return inner_name;
+}
+
 struct RateLimitConfigsData : public GlobalTableFunctionState {
 	vector<OperationConfig> configs;
+	vector<string> display_names;
 	idx_t current_idx;
 
 	RateLimitConfigsData() : current_idx(0) {
@@ -179,6 +226,11 @@ unique_ptr<GlobalTableFunctionState> RateLimitConfigsInit(ClientContext &context
 	auto config = RateLimitConfig::Get(context);
 	if (config) {
 		result->configs = config->GetAllConfigs();
+		// Compute display names (show wrapped name if filesystem has been wrapped)
+		result->display_names.reserve(result->configs.size());
+		for (const auto &cfg : result->configs) {
+			result->display_names.push_back(GetDisplayFilesystemName(context, cfg.filesystem_name));
+		}
 	}
 	return std::move(result);
 }
@@ -189,8 +241,9 @@ void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, 
 	idx_t count = 0;
 	while (state.current_idx < state.configs.size() && count < STANDARD_VECTOR_SIZE) {
 		auto &config = state.configs[state.current_idx];
+		auto &display_name = state.display_names[state.current_idx];
 
-		output.SetValue(0, count, Value(config.filesystem_name));
+		output.SetValue(0, count, Value(display_name));
 		output.SetValue(1, count, Value(FileSystemOperationToString(config.operation)));
 		output.SetValue(2, count, Value::BIGINT(static_cast<int64_t>(config.quota)));
 		output.SetValue(3, count, Value(RateLimitModeToString(config.mode)));
@@ -225,8 +278,8 @@ unique_ptr<FunctionData> ListFilesystemsBind(ClientContext &context, TableFuncti
 
 unique_ptr<GlobalTableFunctionState> ListFilesystemsInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto result = make_uniq<ListFilesystemsData>();
-	auto &fs = FileSystem::GetFileSystem(context);
-	result->filesystems = fs.ListSubSystems();
+	auto &vfs = GetVirtualFileSystem(context);
+	result->filesystems = vfs.ListSubSystems();
 	std::sort(result->filesystems.begin(), result->filesystems.end());
 	return std::move(result);
 }
@@ -251,14 +304,14 @@ void ListFilesystemsFunction(ClientContext &context, TableFunctionInput &data, D
 
 void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &context = state.GetContext();
-	auto &fs = FileSystem::GetFileSystem(context);
+	auto &vfs = GetVirtualFileSystem(context);
 	auto config = RateLimitConfig::GetOrCreate(context);
 
 	UnaryExecutor::Execute<string_t, bool>(args.data[0], result, args.size(), [&](string_t fs_name) {
 		string fs_str = fs_name.GetString();
 
 		// Extract the filesystem from the VFS
-		auto extracted_fs = fs.ExtractSubSystem(fs_str);
+		auto extracted_fs = vfs.ExtractSubSystem(fs_str);
 		if (!extracted_fs) {
 			throw InvalidInputException("Filesystem '%s' not found or cannot be extracted. "
 			                            "Use rate_limit_fs_list_filesystems() to see available filesystems.",
@@ -269,7 +322,7 @@ void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &re
 		auto wrapped_fs = make_uniq<RateLimitFileSystem>(std::move(extracted_fs), config);
 
 		// Register the wrapped filesystem
-		fs.RegisterSubSystem(std::move(wrapped_fs));
+		vfs.RegisterSubSystem(std::move(wrapped_fs));
 
 		return true;
 	});

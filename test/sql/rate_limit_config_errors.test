@@ -18,47 +18,47 @@ not found
 
 # Test error: invalid operation for quota
 statement error
-SELECT rate_limit_fs_quota('LocalFileSystem', 'invalid_op', 1000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'invalid_op', 1000, 'blocking');
 ----
 Invalid operation
 
 # Test error: invalid operation for burst
 statement error
-SELECT rate_limit_fs_burst('LocalFileSystem', 'unknown', 1000);
+SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'unknown', 1000);
 ----
 Invalid operation
 
 # Test error: invalid mode
 statement error
-SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 1000, 'invalid_mode');
+SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 1000, 'invalid_mode');
 ----
 Invalid rate limit mode
 
 # Test error: negative quota
 statement error
-SELECT rate_limit_fs_quota('LocalFileSystem', 'read', -100, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', -100, 'blocking');
 ----
 Quota value must be non-negative
 
 # Test error: negative burst
 statement error
-SELECT rate_limit_fs_burst('LocalFileSystem', 'read', -100);
+SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'read', -100);
 ----
 Burst value must be non-negative
 
 # Test error: burst on non-byte operations (only READ/WRITE support burst)
 statement error
-SELECT rate_limit_fs_burst('LocalFileSystem', 'stat', 100);
+SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'stat', 100);
 ----
 Burst limit can only be set for READ or WRITE operations
 
 statement error
-SELECT rate_limit_fs_burst('LocalFileSystem', 'list', 100);
+SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'list', 100);
 ----
 Burst limit can only be set for READ or WRITE operations
 
 statement error
-SELECT rate_limit_fs_burst('LocalFileSystem', 'delete', 100);
+SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'delete', 100);
 ----
 Burst limit can only be set for READ or WRITE operations
 
