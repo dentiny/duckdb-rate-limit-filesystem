@@ -113,9 +113,8 @@ std::optional<WaitInfo> RateLimiter::TryAcquireImmediate(idx_t n) {
 	}
 
 	// Check burst limit only if burst limiting is enabled
-	// If burst capacity is exceeded, return WaitInfo with Duration::max() to indicate
-	// that the request cannot proceed (callers should check for this before mode handling)
 	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
+		// Return max wait to indicate insufficient capacity
 		return WaitInfo {TimePoint::max(), Duration::max()};
 	}
 
