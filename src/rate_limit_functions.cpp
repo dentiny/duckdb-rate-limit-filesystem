@@ -1,6 +1,8 @@
 #include "rate_limit_functions.hpp"
 
+#include "duckdb/common/algorithm.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/file_system.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "file_system_operation.hpp"
 #include "rate_limit_config.hpp"
@@ -135,6 +137,48 @@ void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, 
 	output.SetCardinality(count);
 }
 
+//===--------------------------------------------------------------------===//
+// rate_limit_fs_list_filesystems() - Table Function
+//===--------------------------------------------------------------------===//
+
+struct ListFilesystemsData : public GlobalTableFunctionState {
+	vector<string> filesystems;
+	idx_t current_idx;
+
+	ListFilesystemsData() : current_idx(0) {
+	}
+};
+
+unique_ptr<FunctionData> ListFilesystemsBind(ClientContext &context, TableFunctionBindInput &input,
+                                             vector<LogicalType> &return_types, vector<string> &names) {
+	names.emplace_back("name");
+	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
+
+	return nullptr;
+}
+
+unique_ptr<GlobalTableFunctionState> ListFilesystemsInit(ClientContext &context, TableFunctionInitInput &input) {
+	auto result = make_uniq<ListFilesystemsData>();
+	auto &fs = FileSystem::GetFileSystem(context);
+	result->filesystems = fs.ListSubSystems();
+	std::sort(result->filesystems.begin(), result->filesystems.end());
+	return std::move(result);
+}
+
+void ListFilesystemsFunction(ClientContext &context, TableFunctionInput &data, DataChunk &output) {
+	auto &state = data.global_state->Cast<ListFilesystemsData>();
+
+	idx_t count = 0;
+	while (state.current_idx < state.filesystems.size() && count < STANDARD_VECTOR_SIZE) {
+		output.SetValue(0, count, Value(state.filesystems[state.current_idx]));
+
+		state.current_idx++;
+		count++;
+	}
+
+	output.SetCardinality(count);
+}
+
 } // namespace
 
 ScalarFunction GetRateLimitFsQuotaFunction() {
@@ -158,6 +202,12 @@ ScalarFunction GetRateLimitFsClearFunction() {
 TableFunction GetRateLimitFsConfigsFunction() {
 	TableFunction func("rate_limit_fs_configs", {}, RateLimitConfigsFunction, RateLimitConfigsBind,
 	                   RateLimitConfigsInit);
+	return func;
+}
+
+TableFunction GetRateLimitFsListFilesystemsFunction() {
+	TableFunction func("rate_limit_fs_list_filesystems", {}, ListFilesystemsFunction, ListFilesystemsBind,
+	                   ListFilesystemsInit);
 	return func;
 }
 
