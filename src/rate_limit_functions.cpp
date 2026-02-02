@@ -3,10 +3,6 @@
 #include "duckdb/common/algorithm.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
-<<<<<<< HEAD
-#include "duckdb/common/vector_operations/generic_executor.hpp"
-=======
->>>>>>> main
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
 #include "file_system_operation.hpp"
@@ -225,10 +221,7 @@ unique_ptr<GlobalTableFunctionState> ListFilesystemsInit(ClientContext &context,
 	auto result = make_uniq<ListFilesystemsData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 	result->filesystems = fs.ListSubSystems();
-<<<<<<< HEAD
-=======
 	std::sort(result->filesystems.begin(), result->filesystems.end());
->>>>>>> main
 	return std::move(result);
 }
 
