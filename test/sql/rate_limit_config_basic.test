@@ -1,0 +1,88 @@
+# name: test/sql/rate_limit_config_basic.test
+# description: test basic rate limit configuration operations
+# group: [sql]
+
+require rate_limit_filesystem
+
+# =============================================================================
+# Case-insensitive operation tests
+# =============================================================================
+
+# Test uppercase operation is normalized to lowercase
+query I
+SELECT rate_limit_fs_quota('READ', 1000, 'blocking');
+----
+READ
+
+# Verify it's stored as lowercase
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000	blocking	0
+
+# Test mixed case operation
+query I
+SELECT rate_limit_fs_burst('ReAd', 2000);
+----
+ReAd
+
+# Verify burst was added to existing lowercase entry (UPSERT)
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000	blocking	2000
+
+# Clear for next tests
+query I
+SELECT rate_limit_fs_clear('*');
+----
+all
+
+# =============================================================================
+# Valid configuration tests
+# =============================================================================
+
+# Test setting a quota with blocking mode
+query I
+SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+----
+read
+
+# Test setting a burst
+query I
+SELECT rate_limit_fs_burst('read', 5000000);
+----
+read
+
+# Test viewing the config
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	1000000	blocking	5000000
+
+# Test setting quota with non-blocking mode
+query I
+SELECT rate_limit_fs_quota('write', 500000, 'non_blocking');
+----
+write
+
+# Test setting quota with alternative mode name (hyphenated)
+query I
+SELECT rate_limit_fs_quota('list', 100, 'non-blocking');
+----
+list
+
+# Test viewing all configs
+query ITIT
+SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
+----
+list	100	non_blocking	0
+read	1000000	blocking	5000000
+write	500000	non_blocking	0
+
+# Cleanup
+query I
+SELECT rate_limit_fs_clear('*');
+----
+all
+

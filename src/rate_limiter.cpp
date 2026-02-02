@@ -39,12 +39,15 @@ Duration Quota::GetEmissionInterval() const {
 }
 
 Duration Quota::GetDelayTolerance() const {
-	if (bandwidth == 0 || burst == 0) {
+	if (bandwidth == 0) {
+		// No rate limiting - infinite tolerance
 		return Duration::max();
 	}
 	// Delay tolerance = burst * emission_interval
-	auto emission_interval = GetEmissionInterval();
-	return emission_interval * burst;
+	// For burst=0 (rate-only), use emission_interval (allows 1 op immediately)
+	const auto emission_interval = GetEmissionInterval();
+	const idx_t effective_burst = (burst == 0) ? 1 : burst;
+	return emission_interval * effective_burst;
 }
 
 //===--------------------------------------------------------------------===//

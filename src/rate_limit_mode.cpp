@@ -20,12 +20,14 @@ RateLimitMode ParseRateLimitMode(const string &mode_str) {
 
 string RateLimitModeToString(RateLimitMode mode) {
 	switch (mode) {
+	case RateLimitMode::NONE:
+		return "none";
 	case RateLimitMode::BLOCKING:
 		return "blocking";
 	case RateLimitMode::NON_BLOCKING:
 		return "non_blocking";
 	default:
-		return "unknown";
+		throw InternalException("Unknown RateLimitMode value");
 	}
 }
 

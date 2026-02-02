@@ -1,0 +1,114 @@
+# name: test/sql/rate_limit_config_upsert.test
+# description: test rate limit configuration UPSERT and clear operations
+# group: [sql]
+
+require rate_limit_filesystem
+
+# =============================================================================
+# Setup initial config
+# =============================================================================
+
+query I
+SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+----
+read
+
+query I
+SELECT rate_limit_fs_burst('read', 5000000);
+----
+read
+
+# =============================================================================
+# UPSERT tests (UPDATE - modifying existing configs)
+# =============================================================================
+
+# Update quota value for existing operation
+query I
+SELECT rate_limit_fs_quota('read', 2000000, 'blocking');
+----
+read
+
+# Verify quota was updated, burst unchanged
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	blocking	5000000
+
+# Update mode for existing operation
+query I
+SELECT rate_limit_fs_quota('read', 2000000, 'non_blocking');
+----
+read
+
+# Verify mode was updated
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	non_blocking	5000000
+
+# Update burst value for existing operation
+query I
+SELECT rate_limit_fs_burst('read', 10000000);
+----
+read
+
+# Verify burst was updated, quota and mode unchanged
+query ITIT
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+read	2000000	non_blocking	10000000
+
+# Verify only one config exists (UPSERT, not duplicate INSERT)
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+1
+
+# =============================================================================
+# Clear operations
+# =============================================================================
+
+# Add more configs for clear tests
+query I
+SELECT rate_limit_fs_quota('write', 500000, 'blocking');
+----
+write
+
+query I
+SELECT rate_limit_fs_quota('list', 100, 'blocking');
+----
+list
+
+# Verify multiple configs exist
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+3
+
+# Test clearing a specific config
+query I
+SELECT rate_limit_fs_clear('read');
+----
+read
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+0
+
+# Other configs still exist
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+2
+
+# Test clearing all configs
+query I
+SELECT rate_limit_fs_clear('*');
+----
+all
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+0

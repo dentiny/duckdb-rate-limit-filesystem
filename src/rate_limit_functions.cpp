@@ -2,6 +2,7 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "file_system_operation.hpp"
 #include "rate_limit_config.hpp"
 
 namespace duckdb {
@@ -26,8 +27,9 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    if (value < 0) {
 			    throw InvalidInputException("Quota value must be non-negative, got %lld", value);
 		    }
+		    auto op_enum = ParseFileSystemOperation(operation.GetString());
 		    auto mode_enum = ParseRateLimitMode(mode.GetString());
-		    config->SetQuota(operation.GetString(), static_cast<idx_t>(value), mode_enum);
+		    config->SetQuota(op_enum, static_cast<idx_t>(value), mode_enum);
 		    return operation;
 	    });
 }
@@ -48,7 +50,8 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    if (value < 0) {
 			    throw InvalidInputException("Burst value must be non-negative, got %lld", value);
 		    }
-		    config->SetBurst(operation.GetString(), static_cast<idx_t>(value));
+		    auto op_enum = ParseFileSystemOperation(operation.GetString());
+		    config->SetBurst(op_enum, static_cast<idx_t>(value));
 		    return operation;
 	    });
 }
@@ -69,7 +72,8 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 			config->ClearAll();
 			return StringVector::AddString(result, "all");
 		}
-		config->ClearConfig(op_str);
+		auto op_enum = ParseFileSystemOperation(op_str);
+		config->ClearConfig(op_enum);
 		return operation;
 	});
 }
@@ -119,7 +123,7 @@ void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, 
 	while (state.current_idx < state.configs.size() && count < STANDARD_VECTOR_SIZE) {
 		auto &config = state.configs[state.current_idx];
 
-		output.SetValue(0, count, Value(config.operation));
+		output.SetValue(0, count, Value(FileSystemOperationToString(config.operation)));
 		output.SetValue(1, count, Value::BIGINT(static_cast<int64_t>(config.quota)));
 		output.SetValue(2, count, Value(RateLimitModeToString(config.mode)));
 		output.SetValue(3, count, Value::BIGINT(static_cast<int64_t>(config.burst)));
