@@ -1,6 +1,7 @@
 #include "rate_limit_file_system.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper_functions.hpp"
 #include "duckdb/common/local_file_system.hpp"
 
 #include <thread>
@@ -98,8 +99,12 @@ FileHandle &RateLimitFileSystem::GetInnerFileHandle(FileHandle &handle) {
 // ==========================================================================
 
 void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	ApplyRateLimit(FileSystemOperation::READ, static_cast<idx_t>(nr_bytes));
-	inner_fs->Read(GetInnerFileHandle(handle), buffer, nr_bytes, location);
+	auto &inner_handle = GetInnerFileHandle(handle);
+	// Truncate nr_bytes based on file size to rate limit only actual readable bytes
+	auto file_size = inner_fs->GetFileSize(inner_handle);
+	const idx_t actual_bytes = MinValue<idx_t>(static_cast<idx_t>(nr_bytes), static_cast<idx_t>(file_size) - location);
+	ApplyRateLimit(FileSystemOperation::READ, actual_bytes);
+	inner_fs->Read(inner_handle, buffer, nr_bytes, location);
 }
 
 void RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
