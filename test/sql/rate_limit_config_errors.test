@@ -1,0 +1,52 @@
+# name: test/sql/rate_limit_config_errors.test
+# description: test rate limit configuration error cases
+# group: [sql]
+
+require rate_limit_filesystem
+
+# Test error: invalid operation for quota
+statement error
+SELECT rate_limit_fs_quota('invalid_op', 1000, 'blocking');
+----
+Invalid operation
+
+# Test error: invalid operation for burst
+statement error
+SELECT rate_limit_fs_burst('unknown', 1000);
+----
+Invalid operation
+
+# Test error: invalid mode
+statement error
+SELECT rate_limit_fs_quota('read', 1000, 'invalid_mode');
+----
+Invalid rate limit mode
+
+# Test error: negative quota
+statement error
+SELECT rate_limit_fs_quota('read', -100, 'blocking');
+----
+Quota value must be non-negative
+
+# Test error: negative burst
+statement error
+SELECT rate_limit_fs_burst('read', -100);
+----
+Burst value must be non-negative
+
+# Test error: burst on non-byte operations (only READ/WRITE support burst)
+statement error
+SELECT rate_limit_fs_burst('stat', 100);
+----
+Burst limit can only be set for READ or WRITE operations
+
+statement error
+SELECT rate_limit_fs_burst('list', 100);
+----
+Burst limit can only be set for READ or WRITE operations
+
+statement error
+SELECT rate_limit_fs_burst('delete', 100);
+----
+Burst limit can only be set for READ or WRITE operations
+

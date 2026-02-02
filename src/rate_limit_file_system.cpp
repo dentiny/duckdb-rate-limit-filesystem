@@ -2,6 +2,7 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/local_file_system.hpp"
+#include "duckdb/common/string_util.hpp"
 
 #include <thread>
 
@@ -243,7 +244,7 @@ bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {
 }
 
 string RateLimitFileSystem::GetName() const {
-	return "RateLimitFileSystem";
+	return StringUtil::Format("RateLimitFileSystem - %s", inner_fs->GetName());
 }
 
 string RateLimitFileSystem::PathSeparator(const string &path) {

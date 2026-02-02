@@ -49,6 +49,12 @@ void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateL
 }
 
 void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
+	// Burst only makes sense for byte-based operations (READ/WRITE)
+	if (operation != FileSystemOperation::READ && operation != FileSystemOperation::WRITE) {
+		throw InvalidInputException("Burst limit can only be set for READ or WRITE operations, not '%s'",
+		                            FileSystemOperationToString(operation));
+	}
+
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 
 	auto it = configs.find(operation);

@@ -233,12 +233,14 @@ TEST_CASE("Rate limit - emission interval is zero when no rate limiting", "[rate
 	REQUIRE(emission_interval == Duration::zero());
 }
 
-TEST_CASE("Rate limit - delay tolerance is max when no burst or rate limiting component", "[rate][quota]") {
-	// No burst limiting
+TEST_CASE("Rate limit - delay tolerance for special cases", "[rate][quota]") {
+	// No burst limiting (rate-only) - uses emission_interval (allows 1 op immediately)
+	// 1000 bytes/sec -> 1ms per byte -> delay tolerance = 1ms
 	Quota quota1(/*bandwidth_p=*/1000, /*burst_p=*/0);
-	REQUIRE(quota1.GetDelayTolerance() == Duration::max());
+	auto expected = std::chrono::duration_cast<Duration>(std::chrono::milliseconds(1));
+	REQUIRE(quota1.GetDelayTolerance() == expected);
 
-	// No rate limiting
+	// No rate limiting - infinite tolerance
 	Quota quota2(/*bandwidth_p=*/0, /*burst_p=*/100);
 	REQUIRE(quota2.GetDelayTolerance() == Duration::max());
 }

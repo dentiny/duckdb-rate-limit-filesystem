@@ -148,9 +148,9 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
-	// 2 ops/sec rate, 2 ops burst
+	// 2 ops/sec rate (no burst for non-byte operations)
+	// Each operation takes 500ms of "time budget"
 	config->SetQuota(FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::STAT, 2);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -158,19 +158,19 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	string test_content = "test";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_stat_test.txt", test_content);
 
-	// First two stat operations should succeed (within burst)
-	REQUIRE(fs.FileExists(temp_path));
+	// First operation passes
 	REQUIRE(fs.FileExists(temp_path));
 
-	// Third should fail
+	// Second operation immediately should fail (rate limited, need to wait 500ms)
 	REQUIRE_THROWS_AS(fs.FileExists(temp_path), IOException);
 
-	// Advance time by 1 second - restores 2 ops
-	mock_clock->Advance(1s);
+	// Advance time by 500ms (1 op at 2 ops/sec)
+	mock_clock->Advance(500ms);
 
-	// Now two more should work
+	// Now one more should work
 	REQUIRE(fs.FileExists(temp_path));
-	REQUIRE(fs.FileExists(temp_path));
+
+	// But immediate next one fails again
 	REQUIRE_THROWS_AS(fs.FileExists(temp_path), IOException);
 }
 

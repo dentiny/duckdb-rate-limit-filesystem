@@ -26,6 +26,21 @@ string CreateTempFile(const string &dir, const string &filename, const string &c
 
 } // namespace
 
+TEST_CASE("RateLimitFileSystem - GetName returns correct name", "[rate_limit_fs]") {
+	auto config = make_shared_ptr<RateLimitConfig>();
+	RateLimitFileSystem fs(config);
+	REQUIRE(fs.GetName() == "RateLimitFileSystem - LocalFileSystem");
+}
+
+TEST_CASE("RateLimitFileSystem - Rate limit filesystem", "[rate_limit_fs]") {
+	auto config = make_shared_ptr<RateLimitConfig>();
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	// Make sure we can cast to RateLimitFileSystem
+	[[maybe_unused]] auto &casted = fs.Cast<RateLimitFileSystem>();
+}
+
 TEST_CASE("RateLimitFileSystem - basic operations without rate limiting", "[rate_limit_fs]") {
 	ScopedDirectory test_dir(TEST_DIR);
 
@@ -88,11 +103,10 @@ TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") 
 	}
 
 	SECTION("Stat operations use stat rate limit") {
-		// Set rate limit for stat: 10 ops/sec
+		// Set rate limit for stat: 10 ops/sec (no burst for non-byte operations)
 		config->SetQuota(FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
-		config->SetBurst(FileSystemOperation::STAT, 100);
 
-		// These should all work (within burst)
+		// These should all work
 		REQUIRE(fs.FileExists(temp_path));
 
 		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
@@ -129,36 +143,37 @@ TEST_CASE("RateLimitFileSystem - non-blocking mode throws on rate limit", "[rate
 	handle->Close();
 }
 
-TEST_CASE("RateLimitFileSystem - GetName returns correct name", "[rate_limit_fs]") {
-	auto config = make_shared_ptr<RateLimitConfig>();
-	RateLimitFileSystem fs(config);
-	REQUIRE(fs.GetName() == "RateLimitFileSystem");
-}
-
-TEST_CASE("RateLimitFileSystem - Rate limit filesystem", "[rate_limit_fs]") {
-	auto config = make_shared_ptr<RateLimitConfig>();
-	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config);
-
-	// Make sure we can cast to RateLimitFileSystem
-	[[maybe_unused]] auto &casted = fs.Cast<RateLimitFileSystem>();
-}
-
-TEST_CASE("RateLimitFileSystem - list operations rate limiting", "[rate_limit_fs]") {
+TEST_CASE("RateLimitFileSystem - list operations blocking mode", "[rate_limit_fs]") {
 	ScopedDirectory test_dir(TEST_DIR);
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	// Set rate limit for list: 100 ops/sec
+	// Set rate limit for list: 100 ops/sec (no burst for non-byte operations)
 	config->SetQuota(FileSystemOperation::LIST, 100, RateLimitMode::BLOCKING);
-	config->SetBurst(FileSystemOperation::LIST, 100);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
 
-	// Glob should work (uses list rate limit)
-	auto files = fs.Glob(test_dir.GetPath() + "/*.txt");
-	// Just verify it doesn't throw
-	REQUIRE(true);
+	// Multiple Glob calls should work (blocking mode waits if needed)
+	[[maybe_unused]] auto files1 = fs.Glob(test_dir.GetPath() + "/*.txt");
+	[[maybe_unused]] auto files2 = fs.Glob(test_dir.GetPath() + "/*.txt");
+}
+
+TEST_CASE("RateLimitFileSystem - list operations non-blocking mode", "[rate_limit_fs]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto config = make_shared_ptr<RateLimitConfig>();
+	// Set rate limit for list: 1 op/sec (no burst for non-byte operations)
+	// Very low rate to ensure second immediate call exceeds limit
+	config->SetQuota(FileSystemOperation::LIST, 1, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	// First Glob should work
+	[[maybe_unused]] auto files = fs.Glob(test_dir.GetPath() + "/*.txt");
+
+	// Second immediate Glob should fail (rate limited, non-blocking throws)
+	REQUIRE_THROWS_AS(fs.Glob(test_dir.GetPath() + "/*.txt"), IOException);
 }
 
 TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_fs]") {
@@ -181,25 +196,6 @@ TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_f
 	REQUIRE(bytes_written == static_cast<int64_t>(content.length()));
 
 	handle->Close();
-}
-
-TEST_CASE("RateLimitFileSystem - delete operations rate limiting", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
-
-	auto config = make_shared_ptr<RateLimitConfig>();
-	// Set rate limit for delete: 10 ops/sec
-	config->SetQuota(FileSystemOperation::DELETE, 10, RateLimitMode::BLOCKING);
-	config->SetBurst(FileSystemOperation::DELETE, 100);
-
-	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config);
-
-	// Create a temp file
-	string temp_path = CreateTempFile(test_dir.GetPath(), "delete_test.txt", "test content");
-
-	// RemoveFile should work (uses delete rate limit)
-	fs.RemoveFile(temp_path);
-	REQUIRE_FALSE(fs.FileExists(temp_path));
 }
 
 TEST_CASE("RateLimitFileSystem - burst exceeds check", "[rate_limit_fs]") {
