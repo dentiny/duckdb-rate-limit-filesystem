@@ -67,6 +67,10 @@ idx_t RateLimitFsFakeFileSystem::SeekPosition(FileHandle &handle) {
 	return local_filesystem->SeekPosition(*local_filesystem_handle);
 }
 
+bool RateLimitFsFakeFileSystem::CanSeek() {
+	return local_filesystem->CanSeek();
+}
+
 bool RateLimitFsFakeFileSystem::Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) {
 	auto &local_filesystem_handle = handle.Cast<RateLimitFsFakeFsHandle>().internal_file_handle;
 	return local_filesystem->Trim(*local_filesystem_handle, offset_bytes, length_bytes);
@@ -92,6 +96,27 @@ bool RateLimitFsFakeFileSystem::OnDiskFile(FileHandle &handle) {
 	return local_filesystem->OnDiskFile(*local_filesystem_handle);
 }
 
+void RateLimitFsFakeFileSystem::Reset(FileHandle &handle) {
+	auto &local_filesystem_handle = handle.Cast<RateLimitFsFakeFsHandle>().internal_file_handle;
+	local_filesystem->Reset(*local_filesystem_handle);
+}
+
+bool RateLimitFsFakeFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener> opener) {
+	return local_filesystem->IsPipe(filename, opener);
+}
+
+bool RateLimitFsFakeFileSystem::TryRemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
+	return local_filesystem->TryRemoveFile(filename, opener);
+}
+
+void RateLimitFsFakeFileSystem::MoveFile(const string &source, const string &target, optional_ptr<FileOpener> opener) {
+	local_filesystem->MoveFile(source, target, opener);
+}
+
+string RateLimitFsFakeFileSystem::PathSeparator(const string &path) {
+	return local_filesystem->PathSeparator(path);
+}
+
 bool RateLimitFsFakeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
 	return local_filesystem->DirectoryExists(directory, opener);
 }
@@ -102,6 +127,12 @@ void RateLimitFsFakeFileSystem::CreateDirectory(const string &directory, optiona
 
 void RateLimitFsFakeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	local_filesystem->RemoveDirectory(directory, opener);
+}
+
+bool RateLimitFsFakeFileSystem::ListFiles(const string &directory,
+                                          const std::function<void(const string &, bool)> &callback,
+                                          FileOpener *opener) {
+	return local_filesystem->ListFiles(directory, callback, opener);
 }
 
 bool RateLimitFsFakeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
