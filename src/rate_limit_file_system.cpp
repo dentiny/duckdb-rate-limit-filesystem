@@ -78,7 +78,7 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 		                  std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count());
 	}
 
-	// Blocking mode (default): wait until ready
+	// Blocking mode: wait until ready
 	auto wait_result = rate_limiter->UntilNReady(bytes);
 	if (wait_result == RateLimitResult::InsufficientCapacity) {
 		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
@@ -145,7 +145,6 @@ bool RateLimitFileSystem::DirectoryExists(const string &directory, optional_ptr<
 }
 
 void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
-	ApplyRateLimit(FileSystemOperation::WRITE);
 	inner_fs->CreateDirectory(directory, opener);
 }
 
@@ -155,7 +154,6 @@ void RateLimitFileSystem::RemoveDirectory(const string &directory, optional_ptr<
 }
 
 void RateLimitFileSystem::MoveFile(const string &source, const string &target, optional_ptr<FileOpener> opener) {
-	ApplyRateLimit(FileSystemOperation::WRITE);
 	inner_fs->MoveFile(source, target, opener);
 }
 
@@ -165,7 +163,6 @@ bool RateLimitFileSystem::FileExists(const string &filename, optional_ptr<FileOp
 }
 
 bool RateLimitFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener> opener) {
-	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->IsPipe(filename, opener);
 }
 
