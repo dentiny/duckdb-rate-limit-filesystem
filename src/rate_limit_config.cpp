@@ -34,7 +34,7 @@ void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateL
 		config.quota = value;
 		config.mode = mode;
 		config.burst = 0;
-		configs[operation] = config;
+		it = configs.emplace(operation, config).first;
 	} else {
 		it->second.quota = value;
 		it->second.mode = mode;
@@ -45,9 +45,7 @@ void RateLimitConfig::SetQuota(FileSystemOperation operation, idx_t value, RateL
 		}
 	}
 
-	// Update the rate limiter
-	auto &config = configs[operation];
-	UpdateRateLimiter(config);
+	UpdateRateLimiter(it->second);
 }
 
 void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
@@ -65,7 +63,7 @@ void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
 		config.quota = 0;
 		config.mode = RateLimitMode::BLOCKING;
 		config.burst = value;
-		configs[operation] = config;
+		it = configs.emplace(operation, config).first;
 	} else {
 		it->second.burst = value;
 		// If both quota and burst are 0, remove the config
@@ -75,9 +73,7 @@ void RateLimitConfig::SetBurst(FileSystemOperation operation, idx_t value) {
 		}
 	}
 
-	// Update the rate limiter
-	auto &config = configs[operation];
-	UpdateRateLimiter(config);
+	UpdateRateLimiter(it->second);
 }
 
 const OperationConfig *RateLimitConfig::GetConfig(FileSystemOperation operation) const {
