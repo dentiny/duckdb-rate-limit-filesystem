@@ -140,11 +140,8 @@ void RateLimitConfig::SetClock(shared_ptr<BaseClock> clock_p) {
 }
 
 void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
-	// Need at least one of quota or burst to create a rate limiter
-	if (config.quota == 0 && config.burst == 0) {
-		config.rate_limiter = nullptr;
-		return;
-	}
+	// Config should have been removed from the map if both quota and burst are 0
+	D_ASSERT(config.quota > 0 || config.burst > 0);
 
 	// Create new rate limiter with current settings, using the configured clock
 	config.rate_limiter = CreateRateLimiter(config.quota, config.burst, clock);
