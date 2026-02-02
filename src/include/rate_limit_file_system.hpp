@@ -3,6 +3,7 @@
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/optional_ptr.hpp"
 #include "duckdb/common/shared_ptr.hpp"
+#include "duckdb/common/string.hpp"
 #include "duckdb/common/unique_ptr.hpp"
 
 #include "rate_limit_config.hpp"
@@ -110,6 +111,7 @@ private:
 	// Extracts the inner file handle from a potentially wrapped handle.
 	FileHandle &GetInnerFileHandle(FileHandle &handle);
 
+	string filesystem_name;
 	unique_ptr<FileSystem> inner_fs;
 	shared_ptr<RateLimitConfig> config;
 };
