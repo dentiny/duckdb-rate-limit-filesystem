@@ -7,9 +7,9 @@
 
 namespace duckdb {
 
-//------------------------------------------------------------------------------
+// ==========================================================================
 // RateLimitFileHandle
-//------------------------------------------------------------------------------
+// ==========================================================================
 
 RateLimitFileHandle::RateLimitFileHandle(RateLimitFileSystem &fs, unique_ptr<FileHandle> inner_handle_p,
                                          const string &path, FileOpenFlags flags)
@@ -29,25 +29,19 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 	return *inner_handle;
 }
 
-//------------------------------------------------------------------------------
+// ==========================================================================
 // RateLimitFileSystem
-//------------------------------------------------------------------------------
+// ==========================================================================
 
-RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p) : inner_fs(std::move(inner_fs_p)) {
+RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p)
+    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
 }
 
-RateLimitFileSystem::RateLimitFileSystem() : inner_fs(FileSystem::CreateLocal()) {
+RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
+    : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)) {
 }
 
 RateLimitFileSystem::~RateLimitFileSystem() {
-}
-
-void RateLimitFileSystem::SetConfig(shared_ptr<RateLimitConfig> config_p) {
-	config = std::move(config_p);
-}
-
-shared_ptr<RateLimitConfig> RateLimitFileSystem::GetConfig() const {
-	return config;
 }
 
 FileSystem &RateLimitFileSystem::GetInnerFileSystem() const {
@@ -96,15 +90,12 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 
 FileHandle &RateLimitFileSystem::GetInnerFileHandle(FileHandle &handle) {
 	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	return rate_limit_handle->GetInnerHandle();
+	return rate_limit_handle.GetInnerHandle();
 }
 
-unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
-                                                     optional_ptr<FileOpener> opener) {
-	// Note: OpenFile is not rate limited as it's typically fast and metadata-only
-	auto inner_handle = inner_fs->OpenFile(path, flags, opener);
-	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), path, flags);
-}
+// ==========================================================================
+// Rate limited operations
+// ==========================================================================
 
 void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	ApplyRateLimit(FileSystemOperation::READ, static_cast<idx_t>(nr_bytes));
@@ -144,10 +135,6 @@ FileType RateLimitFileSystem::GetFileType(FileHandle &handle) {
 void RateLimitFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	ApplyRateLimit(FileSystemOperation::WRITE);
 	inner_fs->Truncate(GetInnerFileHandle(handle), new_size);
-}
-
-void RateLimitFileSystem::FileSync(FileHandle &handle) {
-	inner_fs->FileSync(GetInnerFileHandle(handle));
 }
 
 bool RateLimitFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
@@ -201,6 +188,41 @@ bool RateLimitFileSystem::ListFiles(const string &directory, const std::function
 	return inner_fs->ListFiles(directory, callback, opener);
 }
 
+bool RateLimitFileSystem::ListFilesExtended(const string &directory,
+                                            const std::function<void(OpenFileInfo &info)> &callback,
+                                            optional_ptr<FileOpener> opener) {
+	ApplyRateLimit(FileSystemOperation::LIST);
+	return inner_fs->ListFiles(directory, callback, opener);
+}
+
+// ==========================================================================
+// Delegate to inner file system (no rate limiting)
+// ==========================================================================
+
+unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
+                                                     optional_ptr<FileOpener> opener) {
+	auto inner_handle = inner_fs->OpenFile(path, flags, opener);
+	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), path, flags);
+}
+
+unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
+                                                             optional_ptr<FileOpener> opener) {
+	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
+	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), file.path, flags);
+}
+
+bool RateLimitFileSystem::SupportsOpenFileExtended() const {
+	return true;
+}
+
+bool RateLimitFileSystem::SupportsListFilesExtended() const {
+	return true;
+}
+
+void RateLimitFileSystem::FileSync(FileHandle &handle) {
+	inner_fs->FileSync(GetInnerFileHandle(handle));
+}
+
 void RateLimitFileSystem::Seek(FileHandle &handle, idx_t location) {
 	inner_fs->Seek(GetInnerFileHandle(handle), location);
 }
@@ -227,28 +249,6 @@ string RateLimitFileSystem::GetName() const {
 
 string RateLimitFileSystem::PathSeparator(const string &path) {
 	return inner_fs->PathSeparator(path);
-}
-
-unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
-                                                             optional_ptr<FileOpener> opener) {
-	// Note: OpenFile is not rate limited as it's typically fast and metadata-only
-	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
-	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), file.path, flags);
-}
-
-bool RateLimitFileSystem::SupportsOpenFileExtended() const {
-	return true;
-}
-
-bool RateLimitFileSystem::ListFilesExtended(const string &directory,
-                                            const std::function<void(OpenFileInfo &info)> &callback,
-                                            optional_ptr<FileOpener> opener) {
-	ApplyRateLimit(FileSystemOperation::LIST);
-	return inner_fs->ListFiles(directory, callback, opener);
-}
-
-bool RateLimitFileSystem::SupportsListFilesExtended() const {
-	return true;
 }
 
 } // namespace duckdb

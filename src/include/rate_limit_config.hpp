@@ -7,6 +7,7 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/object_cache.hpp"
 
+#include "base_clock.hpp"
 #include "file_system_operation.hpp"
 #include "mutex.hpp"
 #include "rate_limit_mode.hpp"
@@ -75,6 +76,9 @@ public:
 	// Gets the config from the client context's object cache. Returns nullptr if not exists.
 	static shared_ptr<RateLimitConfig> Get(ClientContext &context);
 
+	// Sets the clock to use for rate limiters (for testing with MockClock).
+	void SetClock(shared_ptr<BaseClock> clock_p);
+
 private:
 	// Updates the rate limiter for an operation based on current config.
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);
@@ -82,6 +86,8 @@ private:
 	mutable concurrency::mutex config_lock;
 	// Maps from operation enum to its configuration.
 	unordered_map<FileSystemOperation, OperationConfig> configs DUCKDB_GUARDED_BY(config_lock);
+	// Clock to use for rate limiters (nullptr means use default clock).
+	shared_ptr<BaseClock> clock DUCKDB_GUARDED_BY(config_lock);
 };
 
 } // namespace duckdb

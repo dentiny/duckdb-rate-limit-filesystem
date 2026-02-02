@@ -12,6 +12,10 @@ namespace duckdb {
 // Forward declaration.
 class RateLimitFileSystem;
 
+// ==========================================================================
+// RateLimitFileHandle
+// ==========================================================================
+
 // File handle that wraps another file handle and applies rate limiting.
 class RateLimitFileHandle : public FileHandle {
 public:
@@ -32,26 +36,20 @@ private:
 // Wraps an inner file system and applies rate limits based on the configuration.
 class RateLimitFileSystem : public FileSystem {
 public:
-	// Creates a rate limit file system wrapping the given inner file system.
-	explicit RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p);
+	// Creates a rate limit file system wrapping the given inner file system and config.
+	RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p);
 
 	// Creates a rate limit file system wrapping a new local file system.
-	RateLimitFileSystem();
+	explicit RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p);
 
 	~RateLimitFileSystem() override;
-
-	// Sets the rate limit configuration to use.
-	void SetConfig(shared_ptr<RateLimitConfig> config_p);
-
-	// Returns the current rate limit configuration.
-	shared_ptr<RateLimitConfig> GetConfig() const;
 
 	// Returns the inner file system.
 	FileSystem &GetInnerFileSystem() const;
 
-	// FileSystem interface implementation
-	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
-	                                optional_ptr<FileOpener> opener = nullptr) override;
+	// ==========================================================================
+	// Rate limited operations
+	// ==========================================================================
 
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
@@ -63,7 +61,6 @@ public:
 	FileType GetFileType(FileHandle &handle) override;
 
 	void Truncate(FileHandle &handle, int64_t new_size) override;
-	void FileSync(FileHandle &handle) override;
 
 	bool DirectoryExists(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
@@ -79,6 +76,15 @@ public:
 	vector<OpenFileInfo> Glob(const string &path, FileOpener *opener = nullptr) override;
 	bool ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
 	               FileOpener *opener = nullptr) override;
+
+	// ==========================================================================
+	// Delegate to inner file system (no rate limiting)
+	// ==========================================================================
+
+	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
+	                                optional_ptr<FileOpener> opener = nullptr) override;
+
+	void FileSync(FileHandle &handle) override;
 
 	void Seek(FileHandle &handle, idx_t location) override;
 	void Reset(FileHandle &handle) override;

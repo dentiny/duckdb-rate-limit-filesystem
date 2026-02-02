@@ -133,6 +133,16 @@ shared_ptr<RateLimitConfig> RateLimitConfig::Get(ClientContext &context) {
 	return cache.Get<RateLimitConfig>(CACHE_KEY);
 }
 
+void RateLimitConfig::SetClock(shared_ptr<BaseClock> clock_p) {
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	clock = std::move(clock_p);
+
+	// Update all existing rate limiters to use the new clock
+	for (auto &pair : configs) {
+		UpdateRateLimiter(pair.second);
+	}
+}
+
 void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
 	// Need at least one of quota or burst to create a rate limiter
 	if (config.quota == 0 && config.burst == 0) {
@@ -140,8 +150,8 @@ void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
 		return;
 	}
 
-	// Create new rate limiter with current settings
-	config.rate_limiter = CreateRateLimiter(config.quota, config.burst);
+	// Create new rate limiter with current settings, using the configured clock
+	config.rate_limiter = CreateRateLimiter(config.quota, config.burst, clock);
 }
 
 } // namespace duckdb
