@@ -17,7 +17,7 @@ namespace duckdb {
 
 // Configuration for a single operation's rate limiting.
 struct OperationConfig {
-	// Filesystem name this config belongs to
+	// Inner filesystem name (internal filesystem name) this config belongs to.
 	string filesystem_name;
 	// Operation type
 	FileSystemOperation operation;
