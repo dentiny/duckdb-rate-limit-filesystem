@@ -17,6 +17,8 @@ namespace duckdb {
 
 // Configuration for a single operation's rate limiting.
 struct OperationConfig {
+	// Filesystem name this config belongs to
+	string filesystem_name;
 	// Operation type
 	FileSystemOperation operation;
 	// Quota value (bandwidth in bytes per second)
@@ -29,12 +31,14 @@ struct OperationConfig {
 	SharedRateLimiter rate_limiter;
 
 	OperationConfig()
-	    : operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE), burst(0), rate_limiter(nullptr) {
+	    : filesystem_name(), operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE), burst(0),
+	      rate_limiter(nullptr) {
 	}
 };
 
 // Per-DuckDB-instance rate limit configuration storage.
 // Inherits from ObjectCacheEntry for storage in DuckDB's object cache.
+// Configs are stored per-filesystem, per-operation.
 class RateLimitConfig : public ObjectCacheEntry {
 public:
 	static constexpr const char *OBJECT_TYPE = "rate_limit_config";
@@ -49,23 +53,29 @@ public:
 	// Static method for ObjectCache::Get compatibility.
 	static string ObjectType();
 
-	// Sets the quota for an operation.
-	void SetQuota(FileSystemOperation operation, idx_t value, RateLimitMode mode);
+	// Sets the quota for an operation on a specific filesystem.
+	void SetQuota(const string &filesystem_name, FileSystemOperation operation, idx_t value, RateLimitMode mode);
 
-	// Sets the burst for an operation.
-	void SetBurst(FileSystemOperation operation, idx_t value);
+	// Sets the burst for an operation on a specific filesystem.
+	void SetBurst(const string &filesystem_name, FileSystemOperation operation, idx_t value);
 
-	// Gets the configuration for an operation. Returns nullptr if not configured.
-	const OperationConfig *GetConfig(FileSystemOperation operation) const;
+	// Gets the configuration for an operation on a specific filesystem. Returns nullptr if not configured.
+	const OperationConfig *GetConfig(const string &filesystem_name, FileSystemOperation operation) const;
 
-	// Gets or creates a rate limiter for an operation. Returns nullptr if not configured.
-	SharedRateLimiter GetOrCreateRateLimiter(FileSystemOperation operation);
+	// Gets or creates a rate limiter for an operation on a specific filesystem. Returns nullptr if not configured.
+	SharedRateLimiter GetOrCreateRateLimiter(const string &filesystem_name, FileSystemOperation operation);
 
-	// Returns all configured operations.
+	// Returns all configured operations across all filesystems.
 	vector<OperationConfig> GetAllConfigs() const;
 
-	// Clears the configuration for an operation.
-	void ClearConfig(FileSystemOperation operation);
+	// Returns all configured operations for a specific filesystem.
+	vector<OperationConfig> GetConfigsForFilesystem(const string &filesystem_name) const;
+
+	// Clears the configuration for an operation on a specific filesystem.
+	void ClearConfig(const string &filesystem_name, FileSystemOperation operation);
+
+	// Clears all configurations for a specific filesystem.
+	void ClearFilesystem(const string &filesystem_name);
 
 	// Clears all configurations.
 	void ClearAll();
@@ -80,12 +90,29 @@ public:
 	void SetClock(shared_ptr<BaseClock> clock_p);
 
 private:
+	// Key for the nested config map
+	struct ConfigKey {
+		string filesystem_name;
+		FileSystemOperation operation;
+
+		bool operator==(const ConfigKey &other) const {
+			return filesystem_name == other.filesystem_name && operation == other.operation;
+		}
+	};
+
+	struct ConfigKeyHash {
+		size_t operator()(const ConfigKey &key) const {
+			return std::hash<string>()(key.filesystem_name) ^
+			       (std::hash<uint8_t>()(static_cast<uint8_t>(key.operation)) << 1);
+		}
+	};
+
 	// Updates the rate limiter for an operation based on current config.
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);
 
 	mutable concurrency::mutex config_lock;
-	// Maps from operation enum to its configuration.
-	unordered_map<FileSystemOperation, OperationConfig> configs DUCKDB_GUARDED_BY(config_lock);
+	// Maps from (filesystem_name, operation) to its configuration.
+	unordered_map<ConfigKey, OperationConfig, ConfigKeyHash> configs DUCKDB_GUARDED_BY(config_lock);
 	// Clock to use for rate limiters (nullptr means use default clock).
 	shared_ptr<BaseClock> clock DUCKDB_GUARDED_BY(config_lock);
 };

@@ -9,14 +9,14 @@ require rate_limit_filesystem
 # =============================================================================
 
 query I
-SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 1000000, 'blocking');
 ----
-read
+LocalFileSystem
 
 query I
-SELECT rate_limit_fs_burst('read', 5000000);
+SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 5000000);
 ----
-read
+LocalFileSystem
 
 # =============================================================================
 # UPSERT tests (UPDATE - modifying existing configs)
@@ -24,39 +24,39 @@ read
 
 # Update quota value for existing operation
 query I
-SELECT rate_limit_fs_quota('read', 2000000, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 2000000, 'blocking');
 ----
-read
+LocalFileSystem
 
 # Verify quota was updated, burst unchanged
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	2000000	blocking	5000000
+LocalFileSystem	read	2000000	blocking	5000000
 
 # Update mode for existing operation
 query I
-SELECT rate_limit_fs_quota('read', 2000000, 'non_blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 2000000, 'non_blocking');
 ----
-read
+LocalFileSystem
 
 # Verify mode was updated
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	2000000	non_blocking	5000000
+LocalFileSystem	read	2000000	non_blocking	5000000
 
 # Update burst value for existing operation
 query I
-SELECT rate_limit_fs_burst('read', 10000000);
+SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 10000000);
 ----
-read
+LocalFileSystem
 
 # Verify burst was updated, quota and mode unchanged
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	2000000	non_blocking	10000000
+LocalFileSystem	read	2000000	non_blocking	10000000
 
 # Verify only one config exists (UPSERT, not duplicate INSERT)
 query I
@@ -70,14 +70,14 @@ SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
 
 # Add more configs for clear tests
 query I
-SELECT rate_limit_fs_quota('write', 500000, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'write', 500000, 'blocking');
 ----
-write
+LocalFileSystem
 
 query I
-SELECT rate_limit_fs_quota('list', 100, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'list', 100, 'blocking');
 ----
-list
+LocalFileSystem
 
 # Verify multiple configs exist
 query I
@@ -85,11 +85,11 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 ----
 3
 
-# Test clearing a specific config
+# Test clearing a specific operation for a filesystem
 query I
-SELECT rate_limit_fs_clear('read');
+SELECT rate_limit_fs_clear('LocalFileSystem', 'read');
 ----
-read
+LocalFileSystem
 
 query I
 SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
@@ -102,9 +102,20 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 ----
 2
 
-# Test clearing all configs
+# Test clearing all configs for a filesystem
 query I
-SELECT rate_limit_fs_clear('*');
+SELECT rate_limit_fs_clear('LocalFileSystem', '*');
+----
+LocalFileSystem
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'LocalFileSystem';
+----
+0
+
+# Test clearing all configs globally
+query I
+SELECT rate_limit_fs_clear('*', '*');
 ----
 all
 

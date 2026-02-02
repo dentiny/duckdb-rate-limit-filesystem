@@ -34,15 +34,16 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 // RateLimitFileSystem
 // ==========================================================================
 
-RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p)
-    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
+RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p,
+                                         const string &config_filesystem_name_p)
+    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)), config_filesystem_name(config_filesystem_name_p) {
 	if (!config) {
 		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
 	}
 }
 
 RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
-    : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)) {
+    : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)), config_filesystem_name("LocalFileSystem") {
 	if (!config) {
 		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
 	}
@@ -51,13 +52,21 @@ RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
 RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
+const string &RateLimitFileSystem::GetConfigFilesystemName() const {
+	return config_filesystem_name;
+}
+
+bool RateLimitFileSystem::CanHandleFile(const string &path) {
+	return inner_fs->CanHandleFile(path);
+}
+
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(operation);
+	auto rate_limiter = config->GetOrCreateRateLimiter(config_filesystem_name, operation);
 	if (!rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(operation);
+	const auto *op_config = config->GetConfig(config_filesystem_name, operation);
 	if (!op_config) {
 		return;
 	}

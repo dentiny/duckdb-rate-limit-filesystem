@@ -10,31 +10,31 @@ require rate_limit_filesystem
 
 # Test uppercase operation is normalized to lowercase
 query I
-SELECT rate_limit_fs_quota('READ', 1000, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'READ', 1000, 'blocking');
 ----
-READ
+LocalFileSystem
 
 # Verify it's stored as lowercase
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000	blocking	0
+LocalFileSystem	read	1000	blocking	0
 
 # Test mixed case operation
 query I
-SELECT rate_limit_fs_burst('ReAd', 2000);
+SELECT rate_limit_fs_burst('LocalFileSystem', 'ReAd', 2000);
 ----
-ReAd
+LocalFileSystem
 
 # Verify burst was added to existing lowercase entry (UPSERT)
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000	blocking	2000
+LocalFileSystem	read	1000	blocking	2000
 
 # Clear for next tests
 query I
-SELECT rate_limit_fs_clear('*');
+SELECT rate_limit_fs_clear('*', '*');
 ----
 all
 
@@ -44,45 +44,45 @@ all
 
 # Test setting a quota with blocking mode
 query I
-SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 1000000, 'blocking');
 ----
-read
+LocalFileSystem
 
 # Test setting a burst
 query I
-SELECT rate_limit_fs_burst('read', 5000000);
+SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 5000000);
 ----
-read
+LocalFileSystem
 
 # Test viewing the config
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000000	blocking	5000000
+LocalFileSystem	read	1000000	blocking	5000000
 
 # Test setting quota with non-blocking mode
 query I
-SELECT rate_limit_fs_quota('write', 500000, 'non_blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'write', 500000, 'non_blocking');
 ----
-write
+LocalFileSystem
 
 # Test setting quota with alternative mode name (hyphenated)
 query I
-SELECT rate_limit_fs_quota('list', 100, 'non-blocking');
+SELECT rate_limit_fs_quota('LocalFileSystem', 'list', 100, 'non-blocking');
 ----
-list
+LocalFileSystem
 
 # Test viewing all configs
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
 ----
-list	100	non_blocking	0
-read	1000000	blocking	5000000
-write	500000	non_blocking	0
+LocalFileSystem	list	100	non_blocking	0
+LocalFileSystem	read	1000000	blocking	5000000
+LocalFileSystem	write	500000	non_blocking	0
 
 # Cleanup
 query I
-SELECT rate_limit_fs_clear('*');
+SELECT rate_limit_fs_clear('*', '*');
 ----
 all
 

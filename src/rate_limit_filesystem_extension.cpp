@@ -1,10 +1,13 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "rate_limit_filesystem_extension.hpp"
+#include "fake_filesystem.hpp"
 #include "rate_limit_functions.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/file_system.hpp"
+#include "duckdb/common/opener_file_system.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/function/table_function.hpp"
 
@@ -17,6 +20,16 @@ void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(GetRateLimitFsBurstFunction());
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
+
+	// Register filesystem management functions
+	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
+	loader.RegisterFunction(GetRateLimitFsWrapFunction());
+
+	// Register fake filesystem for testing
+	auto &db = loader.GetDatabaseInstance();
+	auto &opener_fs = db.GetFileSystem().Cast<OpenerFileSystem>();
+	auto &vfs = opener_fs.GetFileSystem();
+	vfs.RegisterSubSystem(make_uniq<RateLimitFsFakeFileSystem>());
 }
 } // namespace
 
