@@ -19,9 +19,9 @@ include_directories(
 file(GLOB_RECURSE EXTENSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 if(NOT CLANG_TIDY)
-  if(${BUILD_UNITTESTS})
-    add_subdirectory(test/unittest)
-  endif()
+if(${BUILD_UNITTESTS})
+  add_subdirectory(test/unittest)
+endif()
 
 endif()
 

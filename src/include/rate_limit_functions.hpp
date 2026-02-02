@@ -31,4 +31,9 @@ ScalarFunction GetRateLimitFsClearFunction();
 // Columns: operation VARCHAR, quota BIGINT, mode VARCHAR, burst BIGINT
 TableFunction GetRateLimitFsConfigsFunction();
 
+// Table function: rate_limit_fs_list_filesystems()
+// Lists all registered filesystems in the virtual file system.
+// Columns: name VARCHAR
+TableFunction GetRateLimitFsListFilesystemsFunction();
+
 } // namespace duckdb

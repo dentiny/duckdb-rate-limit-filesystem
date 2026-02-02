@@ -17,6 +17,9 @@ void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(GetRateLimitFsBurstFunction());
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
+
+	// Register filesystem management functions
+	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
 }
 } // namespace
 
