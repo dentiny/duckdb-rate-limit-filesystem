@@ -41,23 +41,16 @@ RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shar
 	}
 }
 
-RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
-    : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)) {
-	if (!config) {
-		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
-	}
-}
-
 RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(operation);
+	auto rate_limiter = config->GetOrCreateRateLimiter(GetName(), operation);
 	if (!rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(operation);
+	const auto *op_config = config->GetConfig(GetName(), operation);
 	if (!op_config) {
 		return;
 	}
@@ -198,6 +191,10 @@ bool RateLimitFileSystem::ListFilesExtended(const string &directory,
 // ==========================================================================
 // Delegate to inner file system (no rate limiting)
 // ==========================================================================
+
+bool RateLimitFileSystem::CanHandleFile(const string &path) {
+	return inner_fs->CanHandleFile(path);
+}
 
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {

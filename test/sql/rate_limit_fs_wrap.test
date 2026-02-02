@@ -1,0 +1,37 @@
+# name: test/sql/rate_limit_fs_wrap.test
+# description: Test rate_limit_fs_wrap() function
+# group: [sql]
+
+require rate_limit_filesystem
+
+# Wrap the fake filesystem with rate limiting
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
+# After wrapping, the original fake filesystem should be replaced with the rate-limited version
+query I
+SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
+----
+true
+
+# Set quota on the wrapped filesystem
+statement ok
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
+
+# Verify the config was set
+query IIII
+SELECT filesystem, operation, quota, mode FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking
+
+# Clear the config
+statement ok
+SELECT rate_limit_fs_clear('RateLimitFileSystem - RateLimitFsFakeFileSystem', '*');
+
+# Verify cleared
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+0

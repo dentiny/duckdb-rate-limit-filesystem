@@ -17,6 +17,7 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs_mock";
+constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
 string CreateTempFile(const string &dir, const string &filename, const string &content) {
@@ -44,8 +45,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: non-blocking throws after exhausting
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 20 byte burst
-	config->SetQuota(FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 20);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -74,8 +75,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: advancing time restores capacity", "
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 10 byte burst
-	config->SetQuota(FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 10);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -112,8 +113,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: partial time advance restores partia
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 10 byte burst
-	config->SetQuota(FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 10);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -150,7 +151,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 
 	// 2 ops/sec rate (no burst for non-byte operations)
 	// Each operation takes 500ms of "time budget"
-	config->SetQuota(FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -187,8 +188,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads within burst - no r
 	config->SetClock(mock_clock);
 
 	// 100 bytes/sec rate, 100 byte burst - enough for all concurrent reads
-	config->SetQuota(FileSystemOperation::READ, 100, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 100);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 100, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 100);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
@@ -237,8 +238,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 50 byte burst - not enough for all concurrent reads
-	config->SetQuota(FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 50);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 50);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
@@ -289,8 +290,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads with time advance",
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 20 byte burst
-	config->SetQuota(FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(FileSystemOperation::READ, 20);
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);

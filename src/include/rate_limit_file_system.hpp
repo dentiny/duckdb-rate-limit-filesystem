@@ -37,10 +37,8 @@ private:
 class RateLimitFileSystem : public FileSystem {
 public:
 	// Creates a rate limit file system wrapping the given inner file system and config.
+	// Rate limit configs are looked up using the inner filesystem's name.
 	RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p);
-
-	// Creates a rate limit file system wrapping a new local file system.
-	explicit RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p);
 
 	~RateLimitFileSystem() override;
 
@@ -73,6 +71,8 @@ public:
 	// ==========================================================================
 	// Delegate to inner file system (no rate limiting)
 	// ==========================================================================
+
+	bool CanHandleFile(const string &path) override;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;

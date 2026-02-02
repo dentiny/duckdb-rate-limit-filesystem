@@ -23,6 +23,7 @@ void LoadInternal(ExtensionLoader &loader) {
 
 	// Register filesystem management functions
 	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
+	loader.RegisterFunction(GetRateLimitFsWrapFunction());
 
 	// TODO(hjiang): Register a fake filesystem at extension load for testing purpose. This is not ideal since
 	// additional necessary instance is shipped in the extension. Local filesystem is not viable because it's not

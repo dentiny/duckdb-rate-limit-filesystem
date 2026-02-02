@@ -4,39 +4,45 @@
 
 require rate_limit_filesystem
 
+# First wrap the fake filesystem so rate limiting can be applied
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
 # =============================================================================
 # Case-insensitive operation tests
 # =============================================================================
 
 # Test uppercase operation is normalized to lowercase
 query I
-SELECT rate_limit_fs_quota('READ', 1000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'READ', 1000, 'blocking');
 ----
-READ
+true
 
 # Verify it's stored as lowercase
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000	blocking	0
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	0
 
 # Test mixed case operation
 query I
-SELECT rate_limit_fs_burst('ReAd', 2000);
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'ReAd', 2000);
 ----
-ReAd
+true
 
 # Verify burst was added to existing lowercase entry (UPSERT)
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000	blocking	2000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	2000
 
 # Clear for next tests
 query I
-SELECT rate_limit_fs_clear('*');
+SELECT rate_limit_fs_clear('*', '*');
 ----
-all
+true
 
 # =============================================================================
 # Valid configuration tests
@@ -44,45 +50,44 @@ all
 
 # Test setting a quota with blocking mode
 query I
-SELECT rate_limit_fs_quota('read', 1000000, 'blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
 ----
-read
+true
 
 # Test setting a burst
 query I
-SELECT rate_limit_fs_burst('read', 5000000);
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 5000000);
 ----
-read
+true
 
 # Test viewing the config
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-read	1000000	blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000
 
 # Test setting quota with non-blocking mode
 query I
-SELECT rate_limit_fs_quota('write', 500000, 'non_blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 500000, 'non_blocking');
 ----
-write
+true
 
 # Test setting quota with alternative mode name (hyphenated)
 query I
-SELECT rate_limit_fs_quota('list', 100, 'non-blocking');
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'list', 100, 'non-blocking');
 ----
-list
+true
 
 # Test viewing all configs
-query ITIT
+query IIIII
 SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
 ----
-list	100	non_blocking	0
-read	1000000	blocking	5000000
-write	500000	non_blocking	0
+RateLimitFileSystem - RateLimitFsFakeFileSystem	list	100	non_blocking	0
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	write	500000	non_blocking	0
 
 # Cleanup
 query I
-SELECT rate_limit_fs_clear('*');
+SELECT rate_limit_fs_clear('*', '*');
 ----
-all
-
+true
