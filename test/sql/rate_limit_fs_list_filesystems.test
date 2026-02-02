@@ -1,0 +1,27 @@
+# name: test/sql/rate_limit_fs_list_filesystems.test
+# description: Test rate_limit_fs_list_filesystems() function
+# group: [sql]
+
+require rate_limit_filesystem
+
+# Test listing filesystems returns results
+statement ok
+SELECT * FROM rate_limit_fs_list_filesystems();
+
+# List filesystems should return at least LocalFileSystem
+query I
+SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem';
+----
+true
+
+# The result should have a 'name' column
+query I
+SELECT name FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem' LIMIT 1;
+----
+LocalFileSystem
+
+# Fake filesystem should be auto-registered when extension loads
+query I
+SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
+----
+true

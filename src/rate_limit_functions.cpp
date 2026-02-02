@@ -1,8 +1,12 @@
 #include "rate_limit_functions.hpp"
 
+#include "duckdb/common/algorithm.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
+<<<<<<< HEAD
 #include "duckdb/common/vector_operations/generic_executor.hpp"
+=======
+>>>>>>> main
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
 #include "file_system_operation.hpp"
@@ -221,6 +225,10 @@ unique_ptr<GlobalTableFunctionState> ListFilesystemsInit(ClientContext &context,
 	auto result = make_uniq<ListFilesystemsData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 	result->filesystems = fs.ListSubSystems();
+<<<<<<< HEAD
+=======
+	std::sort(result->filesystems.begin(), result->filesystems.end());
+>>>>>>> main
 	return std::move(result);
 }
 
@@ -236,37 +244,6 @@ void ListFilesystemsFunction(ClientContext &context, TableFunctionInput &data, D
 	}
 
 	output.SetCardinality(count);
-}
-
-//===--------------------------------------------------------------------===//
-// rate_limit_fs_wrap(filesystem_name)
-//===--------------------------------------------------------------------===//
-
-void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto &fs = FileSystem::GetFileSystem(context);
-	auto config = RateLimitConfig::GetOrCreate(context);
-
-	auto &name_vector = args.data[0];
-
-	UnaryExecutor::Execute<string_t, string_t>(name_vector, result, args.size(), [&](string_t fs_name) {
-		string name = fs_name.GetString();
-
-		// Extract the filesystem from the virtual filesystem
-		auto inner_fs = fs.ExtractSubSystem(name);
-		if (!inner_fs) {
-			throw InvalidInputException("Filesystem '%s' not found or is disabled", name);
-		}
-
-		// Create the wrapped filesystem
-		auto wrapped_fs = make_uniq<RateLimitFileSystem>(std::move(inner_fs), config, name);
-		string new_name = wrapped_fs->GetName();
-
-		// Register the wrapped filesystem
-		fs.RegisterSubSystem(std::move(wrapped_fs));
-
-		return StringVector::AddString(result, new_name);
-	});
 }
 
 } // namespace
@@ -301,11 +278,6 @@ TableFunction GetRateLimitFsListFilesystemsFunction() {
 	TableFunction func("rate_limit_fs_list_filesystems", {}, ListFilesystemsFunction, ListFilesystemsBind,
 	                   ListFilesystemsInit);
 	return func;
-}
-
-ScalarFunction GetRateLimitFsWrapFunction() {
-	return ScalarFunction("rate_limit_fs_wrap", {LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsWrapFunction);
 }
 
 } // namespace duckdb

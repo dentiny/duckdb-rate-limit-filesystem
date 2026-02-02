@@ -23,9 +23,10 @@ void LoadInternal(ExtensionLoader &loader) {
 
 	// Register filesystem management functions
 	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
-	loader.RegisterFunction(GetRateLimitFsWrapFunction());
 
-	// Register fake filesystem for testing
+	// TODO(hjiang): Register a fake filesystem at extension load for testing purpose. This is not ideal since
+	// additional necessary instance is shipped in the extension. Local filesystem is not viable because it's not
+	// registered in virtual filesystem. A better approach is find another filesystem not in httpfs extension.
 	auto &db = loader.GetDatabaseInstance();
 	auto &opener_fs = db.GetFileSystem().Cast<OpenerFileSystem>();
 	auto &vfs = opener_fs.GetFileSystem();
