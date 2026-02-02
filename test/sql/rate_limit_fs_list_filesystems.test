@@ -19,3 +19,9 @@ query I
 SELECT name FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem' LIMIT 1;
 ----
 LocalFileSystem
+
+# Fake filesystem should be auto-registered when extension loads
+query I
+SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
+----
+true
