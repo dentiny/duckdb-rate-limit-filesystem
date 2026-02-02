@@ -37,21 +37,10 @@ private:
 class RateLimitFileSystem : public FileSystem {
 public:
 	// Creates a rate limit file system wrapping the given inner file system and config.
-	// The config_filesystem_name is used for looking up rate limit configs.
-	RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p,
-	                    const string &config_filesystem_name_p);
-
-	// Creates a rate limit file system wrapping a new local file system.
-	// Uses "LocalFileSystem" as the config filesystem name.
-	explicit RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p);
+	// Rate limit configs are looked up using the inner filesystem's name.
+	RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p);
 
 	~RateLimitFileSystem() override;
-
-	// Returns the filesystem name used for config lookups.
-	const string &GetConfigFilesystemName() const;
-
-	// Returns whether this filesystem can handle the given file.
-	bool CanHandleFile(const string &path) override;
 
 	// ==========================================================================
 	// Rate limited operations
@@ -82,6 +71,8 @@ public:
 	// ==========================================================================
 	// Delegate to inner file system (no rate limiting)
 	// ==========================================================================
+
+	bool CanHandleFile(const string &path) override;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
@@ -121,8 +112,6 @@ private:
 
 	unique_ptr<FileSystem> inner_fs;
 	shared_ptr<RateLimitConfig> config;
-	// The filesystem name to use for looking up rate limit configs.
-	string config_filesystem_name;
 };
 
 } // namespace duckdb

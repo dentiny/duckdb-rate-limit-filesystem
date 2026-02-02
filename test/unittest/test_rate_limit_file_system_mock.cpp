@@ -49,7 +49,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: non-blocking throws after exhausting
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config, TEST_FS_NAME);
+	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_test.txt", test_content);
@@ -79,7 +79,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: advancing time restores capacity", "
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config, TEST_FS_NAME);
+	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_advance_test.txt", test_content);
@@ -117,7 +117,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: partial time advance restores partia
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config, TEST_FS_NAME);
+	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_partial_test.txt", test_content);
@@ -154,7 +154,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config, TEST_FS_NAME);
+	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	string test_content = "test";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_stat_test.txt", test_content);
@@ -192,7 +192,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads within burst - no r
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 100);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config, TEST_FS_NAME);
+	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "concurrent_no_limit.txt", test_content);
@@ -242,7 +242,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 50);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config, TEST_FS_NAME);
+	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "concurrent_with_limit.txt", test_content);
@@ -294,7 +294,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads with time advance",
 	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
-	RateLimitFileSystem fs(std::move(inner_fs), config, TEST_FS_NAME);
+	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "concurrent_time_advance.txt", test_content);

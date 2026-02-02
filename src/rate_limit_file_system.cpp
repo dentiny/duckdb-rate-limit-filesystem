@@ -34,16 +34,8 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 // RateLimitFileSystem
 // ==========================================================================
 
-RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p,
-                                         const string &config_filesystem_name_p)
-    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)), config_filesystem_name(config_filesystem_name_p) {
-	if (!config) {
-		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
-	}
-}
-
-RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
-    : inner_fs(FileSystem::CreateLocal()), config(std::move(config_p)), config_filesystem_name("LocalFileSystem") {
+RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p)
+    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
 	if (!config) {
 		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
 	}
@@ -52,21 +44,13 @@ RateLimitFileSystem::RateLimitFileSystem(shared_ptr<RateLimitConfig> config_p)
 RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
-const string &RateLimitFileSystem::GetConfigFilesystemName() const {
-	return config_filesystem_name;
-}
-
-bool RateLimitFileSystem::CanHandleFile(const string &path) {
-	return inner_fs->CanHandleFile(path);
-}
-
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(config_filesystem_name, operation);
+	auto rate_limiter = config->GetOrCreateRateLimiter(inner_fs->GetName(), operation);
 	if (!rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(config_filesystem_name, operation);
+	const auto *op_config = config->GetConfig(inner_fs->GetName(), operation);
 	if (!op_config) {
 		return;
 	}
@@ -207,6 +191,10 @@ bool RateLimitFileSystem::ListFilesExtended(const string &directory,
 // ==========================================================================
 // Delegate to inner file system (no rate limiting)
 // ==========================================================================
+
+bool RateLimitFileSystem::CanHandleFile(const string &path) {
+	return inner_fs->CanHandleFile(path);
+}
 
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {

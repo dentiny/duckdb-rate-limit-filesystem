@@ -3,7 +3,6 @@
 #pragma once
 
 #include "duckdb/common/file_system.hpp"
-#include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string.hpp"
 
 namespace duckdb {

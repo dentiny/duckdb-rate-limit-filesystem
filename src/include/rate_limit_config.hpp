@@ -37,8 +37,6 @@ struct OperationConfig {
 };
 
 // Per-DuckDB-instance rate limit configuration storage.
-// Inherits from ObjectCacheEntry for storage in DuckDB's object cache.
-// Configs are stored per-filesystem, per-operation.
 class RateLimitConfig : public ObjectCacheEntry {
 public:
 	static constexpr const char *OBJECT_TYPE = "rate_limit_config";
@@ -90,7 +88,7 @@ public:
 	void SetClock(shared_ptr<BaseClock> clock_p);
 
 private:
-	// Key for the nested config map
+	// Key for the config map
 	struct ConfigKey {
 		string filesystem_name;
 		FileSystemOperation operation;

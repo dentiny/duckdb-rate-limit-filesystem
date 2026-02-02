@@ -13,6 +13,9 @@ namespace duckdb {
 
 namespace {
 
+// Constant to indicate successful function execution.
+constexpr bool SUCCESS = true;
+
 // Helper to validate that a filesystem exists
 void ValidateFilesystemExists(ClientContext &context, const string &fs_name) {
 	auto &fs = FileSystem::GetFileSystem(context);
@@ -98,7 +101,7 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    }
 		    auto op_enum = ParseFileSystemOperation(operation.GetString());
 		    config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
-		    return fs_name;
+		    return Value{SUCCESS};
 	    });
 }
 
@@ -122,17 +125,17 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 
 		                                                      if (fs_str == "*") {
 			                                                      config->ClearAll();
-			                                                      return StringVector::AddString(result, "all");
+			                                                      return Value{SUCCESS};
 		                                                      }
 
 		                                                      if (op_str == "*") {
 			                                                      config->ClearFilesystem(fs_str);
-			                                                      return fs_name;
+			                                                      return Value{SUCCESS};
 		                                                      }
 
 		                                                      auto op_enum = ParseFileSystemOperation(op_str);
 		                                                      config->ClearConfig(fs_str, op_enum);
-		                                                      return fs_name;
+		                                                      return Value{SUCCESS};
 	                                                      });
 }
 
@@ -150,6 +153,12 @@ struct RateLimitConfigsData : public GlobalTableFunctionState {
 
 unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
+	D_ASSERT(return_types.empty());
+	D_ASSERT(names.empty());
+
+    return_types.reserve(5);
+	names.reserve(5);
+
 	names.emplace_back("filesystem");
 	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
 
