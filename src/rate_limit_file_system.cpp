@@ -35,7 +35,8 @@ FileHandle &RateLimitFileHandle::GetInnerHandle() {
 // ==========================================================================
 
 RateLimitFileSystem::RateLimitFileSystem(unique_ptr<FileSystem> inner_fs_p, shared_ptr<RateLimitConfig> config_p)
-    : inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
+    : filesystem_name(StringUtil::Format("RateLimitFileSystem - %s", inner_fs_p->GetName())),
+      inner_fs(std::move(inner_fs_p)), config(std::move(config_p)) {
 	if (!config) {
 		throw InvalidInputException("RateLimitFileSystem requires a non-null RateLimitConfig");
 	}
@@ -45,12 +46,12 @@ RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(GetName(), operation);
+	auto rate_limiter = config->GetOrCreateRateLimiter(filesystem_name, operation);
 	if (!rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(GetName(), operation);
+	const auto *op_config = config->GetConfig(filesystem_name, operation);
 	if (!op_config) {
 		return;
 	}
@@ -245,7 +246,7 @@ bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {
 }
 
 string RateLimitFileSystem::GetName() const {
-	return StringUtil::Format("RateLimitFileSystem - %s", inner_fs->GetName());
+	return filesystem_name;
 }
 
 string RateLimitFileSystem::PathSeparator(const string &path) {
