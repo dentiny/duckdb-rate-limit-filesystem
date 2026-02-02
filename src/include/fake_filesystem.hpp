@@ -24,7 +24,7 @@ public:
 // WARNING: fake filesystem is used for testing purpose and shouldn't be used in production.
 class RateLimitFsFakeFileSystem : public FileSystem {
 public:
-	static constexpr const char *FAKE_FS_PREFIX = "/fake_rate_limit_fs/";
+	static constexpr const char *FAKE_FS_PREFIX = "/tmp/fake_rate_limit_fs/";
 
 	RateLimitFsFakeFileSystem();
 	bool CanHandleFile(const string &path) override;

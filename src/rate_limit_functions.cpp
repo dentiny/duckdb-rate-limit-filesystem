@@ -13,9 +13,6 @@ namespace duckdb {
 
 namespace {
 
-// Constant to indicate successful function execution.
-constexpr bool SUCCESS = true;
-
 // Helper to validate that a filesystem exists
 void ValidateFilesystemExists(ClientContext &context, const string &fs_name) {
 	auto &fs = FileSystem::GetFileSystem(context);
@@ -75,7 +72,7 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 		auto mode_enum = ParseRateLimitMode(modes[mode_idx].GetString());
 		config->SetQuota(fs_str, op_enum, static_cast<idx_t>(value), mode_enum);
 
-		result.SetValue(i, Value(fs_str));
+		result.SetValue(i, Value(true));
 	}
 }
 
@@ -91,7 +88,7 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 	auto &operation_vector = args.data[1];
 	auto &value_vector = args.data[2];
 
-	TernaryExecutor::Execute<string_t, string_t, int64_t, string_t>(
+	TernaryExecutor::Execute<string_t, string_t, int64_t, bool>(
 	    fs_name_vector, operation_vector, value_vector, result, args.size(),
 	    [&](string_t fs_name, string_t operation, int64_t value) {
 		    string fs_str = fs_name.GetString();
@@ -101,7 +98,7 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 		    }
 		    auto op_enum = ParseFileSystemOperation(operation.GetString());
 		    config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
-		    return Value{SUCCESS};
+		    return true;
 	    });
 }
 
@@ -118,25 +115,25 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 	auto &fs_name_vector = args.data[0];
 	auto &operation_vector = args.data[1];
 
-	BinaryExecutor::Execute<string_t, string_t, string_t>(fs_name_vector, operation_vector, result, args.size(),
-	                                                      [&](string_t fs_name, string_t operation) {
-		                                                      string fs_str = fs_name.GetString();
-		                                                      string op_str = operation.GetString();
+	BinaryExecutor::Execute<string_t, string_t, bool>(fs_name_vector, operation_vector, result, args.size(),
+	                                                  [&](string_t fs_name, string_t operation) {
+		                                                  string fs_str = fs_name.GetString();
+		                                                  string op_str = operation.GetString();
 
-		                                                      if (fs_str == "*") {
-			                                                      config->ClearAll();
-			                                                      return Value{SUCCESS};
-		                                                      }
+		                                                  if (fs_str == "*") {
+			                                                  config->ClearAll();
+			                                                  return true;
+		                                                  }
 
-		                                                      if (op_str == "*") {
-			                                                      config->ClearFilesystem(fs_str);
-			                                                      return Value{SUCCESS};
-		                                                      }
+		                                                  if (op_str == "*") {
+			                                                  config->ClearFilesystem(fs_str);
+			                                                  return true;
+		                                                  }
 
-		                                                      auto op_enum = ParseFileSystemOperation(op_str);
-		                                                      config->ClearConfig(fs_str, op_enum);
-		                                                      return Value{SUCCESS};
-	                                                      });
+		                                                  auto op_enum = ParseFileSystemOperation(op_str);
+		                                                  config->ClearConfig(fs_str, op_enum);
+		                                                  return true;
+	                                                  });
 }
 
 //===--------------------------------------------------------------------===//
@@ -156,7 +153,7 @@ unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunct
 	D_ASSERT(return_types.empty());
 	D_ASSERT(names.empty());
 
-    return_types.reserve(5);
+	return_types.reserve(5);
 	names.reserve(5);
 
 	names.emplace_back("filesystem");
@@ -248,26 +245,56 @@ void ListFilesystemsFunction(ClientContext &context, TableFunctionInput &data, D
 	output.SetCardinality(count);
 }
 
+//===--------------------------------------------------------------------===//
+// rate_limit_fs_wrap(filesystem_name)
+//===--------------------------------------------------------------------===//
+
+void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &context = state.GetContext();
+	auto &fs = FileSystem::GetFileSystem(context);
+	auto config = RateLimitConfig::GetOrCreate(context);
+
+	UnaryExecutor::Execute<string_t, bool>(args.data[0], result, args.size(), [&](string_t fs_name) {
+		string fs_str = fs_name.GetString();
+
+		// Extract the filesystem from the VFS
+		auto extracted_fs = fs.ExtractSubSystem(fs_str);
+		if (!extracted_fs) {
+			throw InvalidInputException("Filesystem '%s' not found or cannot be extracted. "
+			                            "Use rate_limit_fs_list_filesystems() to see available filesystems.",
+			                            fs_str);
+		}
+
+		// Wrap it with RateLimitFileSystem
+		auto wrapped_fs = make_uniq<RateLimitFileSystem>(std::move(extracted_fs), config);
+
+		// Register the wrapped filesystem
+		fs.RegisterSubSystem(std::move(wrapped_fs));
+
+		return true;
+	});
+}
+
 } // namespace
 
 ScalarFunction GetRateLimitFsQuotaFunction() {
 	return ScalarFunction("rate_limit_fs_quota",
 	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR},
 	                       LogicalType {LogicalTypeId::BIGINT}, LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsQuotaFunction);
+	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsQuotaFunction);
 }
 
 ScalarFunction GetRateLimitFsBurstFunction() {
 	return ScalarFunction("rate_limit_fs_burst",
 	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR},
 	                       LogicalType {LogicalTypeId::BIGINT}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsBurstFunction);
+	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsBurstFunction);
 }
 
 ScalarFunction GetRateLimitFsClearFunction() {
 	return ScalarFunction("rate_limit_fs_clear",
 	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::VARCHAR}, RateLimitFsClearFunction);
+	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsClearFunction);
 }
 
 TableFunction GetRateLimitFsConfigsFunction() {
@@ -280,6 +307,11 @@ TableFunction GetRateLimitFsListFilesystemsFunction() {
 	TableFunction func("rate_limit_fs_list_filesystems", {}, ListFilesystemsFunction, ListFilesystemsBind,
 	                   ListFilesystemsInit);
 	return func;
+}
+
+ScalarFunction GetRateLimitFsWrapFunction() {
+	return ScalarFunction("rate_limit_fs_wrap", {LogicalType {LogicalTypeId::VARCHAR}},
+	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsWrapFunction);
 }
 
 } // namespace duckdb

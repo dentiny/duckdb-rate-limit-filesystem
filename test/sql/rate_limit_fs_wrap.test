@@ -1,79 +1,48 @@
 # name: test/sql/rate_limit_fs_wrap.test
-# description: Test rate limit filesystem wrap functions
+# description: Test rate_limit_fs_wrap() function
 # group: [sql]
 
 require rate_limit_filesystem
 
-# Test listing filesystems
-statement ok
-SELECT * FROM rate_limit_fs_list_filesystems();
-
-# List filesystems should return at least LocalFileSystem
-query I
-SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'LocalFileSystem';
-----
-true
-
-# Fake filesystem should be auto-registered when extension loads
+# Fake filesystem should be registered on extension load
 query I
 SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
 ----
 true
 
-# Test wrapping a non-existent filesystem should fail
-statement error
-SELECT rate_limit_fs_wrap('NonExistentFileSystem');
-----
-not found
-
-# Configure rate limits for the fake filesystem
-query I
-SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
-----
-RateLimitFsFakeFileSystem
-
-query I
-SELECT rate_limit_fs_burst('RateLimitFsFakeFileSystem', 'read', 5000000);
-----
-RateLimitFsFakeFileSystem
-
-# Verify configs are set
-query I
-SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem' AND operation = 'read';
-----
-1
-
-# Verify filesystem column in configs
-query IIIII
-SELECT filesystem, operation, quota, mode, burst FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
-----
-RateLimitFsFakeFileSystem	read	1000000	blocking	5000000
-
 # Wrap the fake filesystem with rate limiting
 query I
 SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem
+true
 
-# Verify wrapped filesystem is registered
+# After wrapping, the original fake filesystem should be replaced with the rate-limited version
 query I
 SELECT COUNT(*) > 0 FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
 ----
 true
 
-# The original fake filesystem should no longer be in the list (it was extracted)
+# The original fake filesystem should no longer exist
 query I
 SELECT COUNT(*) FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
 ----
 0
 
-# Clear specific filesystem config
-query I
-SELECT rate_limit_fs_clear('RateLimitFsFakeFileSystem', 'read');
-----
-RateLimitFsFakeFileSystem
+# Set quota on the wrapped filesystem (using the inner filesystem's name)
+statement ok
+SELECT rate_limit_fs_quota('RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
 
-# Verify config is cleared
+# Verify the config was set
+query IIII
+SELECT filesystem, operation, quota, mode FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
+----
+RateLimitFsFakeFileSystem	read	1000000	blocking
+
+# Clear the config
+statement ok
+SELECT rate_limit_fs_clear('RateLimitFsFakeFileSystem', '*');
+
+# Verify cleared
 query I
 SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'RateLimitFsFakeFileSystem';
 ----

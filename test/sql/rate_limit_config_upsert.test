@@ -11,12 +11,12 @@ require rate_limit_filesystem
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 1000000, 'blocking');
 ----
-LocalFileSystem
+true
 
 query I
 SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 5000000);
 ----
-LocalFileSystem
+true
 
 # =============================================================================
 # UPSERT tests (UPDATE - modifying existing configs)
@@ -26,7 +26,7 @@ LocalFileSystem
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 2000000, 'blocking');
 ----
-LocalFileSystem
+true
 
 # Verify quota was updated, burst unchanged
 query IIIII
@@ -38,7 +38,7 @@ LocalFileSystem	read	2000000	blocking	5000000
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 2000000, 'non_blocking');
 ----
-LocalFileSystem
+true
 
 # Verify mode was updated
 query IIIII
@@ -50,7 +50,7 @@ LocalFileSystem	read	2000000	non_blocking	5000000
 query I
 SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 10000000);
 ----
-LocalFileSystem
+true
 
 # Verify burst was updated, quota and mode unchanged
 query IIIII
@@ -72,12 +72,12 @@ SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'write', 500000, 'blocking');
 ----
-LocalFileSystem
+true
 
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'list', 100, 'blocking');
 ----
-LocalFileSystem
+true
 
 # Verify multiple configs exist
 query I
@@ -89,7 +89,7 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 query I
 SELECT rate_limit_fs_clear('LocalFileSystem', 'read');
 ----
-LocalFileSystem
+true
 
 query I
 SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE operation = 'read';
@@ -106,7 +106,7 @@ SELECT COUNT(*) FROM rate_limit_fs_configs();
 query I
 SELECT rate_limit_fs_clear('LocalFileSystem', '*');
 ----
-LocalFileSystem
+true
 
 query I
 SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'LocalFileSystem';
@@ -117,7 +117,7 @@ SELECT COUNT(*) FROM rate_limit_fs_configs() WHERE filesystem = 'LocalFileSystem
 query I
 SELECT rate_limit_fs_clear('*', '*');
 ----
-all
+true
 
 query I
 SELECT COUNT(*) FROM rate_limit_fs_configs();

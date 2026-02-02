@@ -12,7 +12,7 @@ require rate_limit_filesystem
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'READ', 1000, 'blocking');
 ----
-LocalFileSystem
+true
 
 # Verify it's stored as lowercase
 query IIIII
@@ -24,7 +24,7 @@ LocalFileSystem	read	1000	blocking	0
 query I
 SELECT rate_limit_fs_burst('LocalFileSystem', 'ReAd', 2000);
 ----
-LocalFileSystem
+true
 
 # Verify burst was added to existing lowercase entry (UPSERT)
 query IIIII
@@ -36,7 +36,7 @@ LocalFileSystem	read	1000	blocking	2000
 query I
 SELECT rate_limit_fs_clear('*', '*');
 ----
-all
+true
 
 # =============================================================================
 # Valid configuration tests
@@ -46,13 +46,13 @@ all
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'read', 1000000, 'blocking');
 ----
-LocalFileSystem
+true
 
 # Test setting a burst
 query I
 SELECT rate_limit_fs_burst('LocalFileSystem', 'read', 5000000);
 ----
-LocalFileSystem
+true
 
 # Test viewing the config
 query IIIII
@@ -64,13 +64,13 @@ LocalFileSystem	read	1000000	blocking	5000000
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'write', 500000, 'non_blocking');
 ----
-LocalFileSystem
+true
 
 # Test setting quota with alternative mode name (hyphenated)
 query I
 SELECT rate_limit_fs_quota('LocalFileSystem', 'list', 100, 'non-blocking');
 ----
-LocalFileSystem
+true
 
 # Test viewing all configs
 query IIIII
@@ -84,5 +84,5 @@ LocalFileSystem	write	500000	non_blocking	0
 query I
 SELECT rate_limit_fs_clear('*', '*');
 ----
-all
+true
 
