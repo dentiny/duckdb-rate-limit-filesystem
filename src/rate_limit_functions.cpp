@@ -39,45 +39,25 @@ void ValidateFilesystemExists(ClientContext &context, const string &fs_name) {
 //===--------------------------------------------------------------------===//
 
 void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	D_ASSERT(args.size() == 1);
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
-	auto &fs_name_vector = args.data[0];
-	auto &operation_vector = args.data[1];
-	auto &value_vector = args.data[2];
-	auto &mode_vector = args.data[3];
+	auto fs_str = args.data[0].GetValue(0).ToString();
+	auto op_str = args.data[1].GetValue(0).ToString();
+	auto value = args.data[2].GetValue(0).GetValue<int64_t>();
+	auto mode_str = args.data[3].GetValue(0).ToString();
 
-	UnifiedVectorFormat fs_name_data, operation_data, value_data, mode_data;
-	fs_name_vector.ToUnifiedFormat(args.size(), fs_name_data);
-	operation_vector.ToUnifiedFormat(args.size(), operation_data);
-	value_vector.ToUnifiedFormat(args.size(), value_data);
-	mode_vector.ToUnifiedFormat(args.size(), mode_data);
-
-	auto fs_names = UnifiedVectorFormat::GetData<string_t>(fs_name_data);
-	auto operations = UnifiedVectorFormat::GetData<string_t>(operation_data);
-	auto values = UnifiedVectorFormat::GetData<int64_t>(value_data);
-	auto modes = UnifiedVectorFormat::GetData<string_t>(mode_data);
-
-	for (idx_t i = 0; i < args.size(); i++) {
-		auto fs_idx = fs_name_data.sel->get_index(i);
-		auto op_idx = operation_data.sel->get_index(i);
-		auto val_idx = value_data.sel->get_index(i);
-		auto mode_idx = mode_data.sel->get_index(i);
-
-		string fs_str = fs_names[fs_idx].GetString();
-		ValidateFilesystemExists(context, fs_str);
-
-		int64_t value = values[val_idx];
-		if (value < 0) {
-			throw InvalidInputException("Quota value must be non-negative, got %lld", value);
-		}
-
-		auto op_enum = ParseFileSystemOperation(operations[op_idx].GetString());
-		auto mode_enum = ParseRateLimitMode(modes[mode_idx].GetString());
-		config->SetQuota(fs_str, op_enum, static_cast<idx_t>(value), mode_enum);
-
-		result.SetValue(i, Value(true));
+	// Extract and validate input.
+	ValidateFilesystemExists(context, fs_str);
+	if (value < 0) {
+		throw InvalidInputException("Quota value must be non-negative, got %lld", value);
 	}
+	const auto op_enum = ParseFileSystemOperation(op_str);
+	const auto mode_enum = ParseRateLimitMode(mode_str);
+
+	config->SetQuota(fs_str, op_enum, static_cast<idx_t>(value), mode_enum);
+	result.SetValue(0, Value::BOOLEAN(true));
 }
 
 //===--------------------------------------------------------------------===//
@@ -85,25 +65,23 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 //===--------------------------------------------------------------------===//
 
 void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	D_ASSERT(args.size() == 1);
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
-	auto &fs_name_vector = args.data[0];
-	auto &operation_vector = args.data[1];
-	auto &value_vector = args.data[2];
+	auto fs_str = args.data[0].GetValue(0).ToString();
+	auto op_str = args.data[1].GetValue(0).ToString();
+	auto value = args.data[2].GetValue(0).GetValue<int64_t>();
 
-	TernaryExecutor::Execute<string_t, string_t, int64_t, bool>(
-	    fs_name_vector, operation_vector, value_vector, result, args.size(),
-	    [&](string_t fs_name, string_t operation, int64_t value) {
-		    string fs_str = fs_name.GetString();
-		    ValidateFilesystemExists(context, fs_str);
-		    if (value < 0) {
-			    throw InvalidInputException("Burst value must be non-negative, got %lld", value);
-		    }
-		    auto op_enum = ParseFileSystemOperation(operation.GetString());
-		    config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
-		    return true;
-	    });
+	// Extract and validate input.
+	ValidateFilesystemExists(context, fs_str);
+	if (value < 0) {
+		throw InvalidInputException("Burst value must be non-negative, got %lld", value);
+	}
+	auto op_enum = ParseFileSystemOperation(op_str);
+
+	config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
+	result.SetValue(0, Value::BOOLEAN(true));
 }
 
 //===--------------------------------------------------------------------===//
@@ -113,31 +91,29 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 //===--------------------------------------------------------------------===//
 
 void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	D_ASSERT(args.size() == 1);
 	auto &context = state.GetContext();
 	auto config = RateLimitConfig::GetOrCreate(context);
 
-	auto &fs_name_vector = args.data[0];
-	auto &operation_vector = args.data[1];
+	auto fs_str = args.data[0].GetValue(0).ToString();
+	auto op_str = args.data[1].GetValue(0).ToString();
 
-	BinaryExecutor::Execute<string_t, string_t, bool>(fs_name_vector, operation_vector, result, args.size(),
-	                                                  [&](string_t fs_name, string_t operation) {
-		                                                  string fs_str = fs_name.GetString();
-		                                                  string op_str = operation.GetString();
+	if (fs_str == "*") {
+		config->ClearAll();
+		result.SetValue(0, Value::BOOLEAN(true));
+		return;
+	}
 
-		                                                  if (fs_str == "*") {
-			                                                  config->ClearAll();
-			                                                  return true;
-		                                                  }
+	if (op_str == "*") {
+		config->ClearFilesystem(fs_str);
+		result.SetValue(0, Value::BOOLEAN(true));
+		return;
+	}
 
-		                                                  if (op_str == "*") {
-			                                                  config->ClearFilesystem(fs_str);
-			                                                  return true;
-		                                                  }
+	auto op_enum = ParseFileSystemOperation(op_str);
+	config->ClearConfig(fs_str, op_enum);
 
-		                                                  auto op_enum = ParseFileSystemOperation(op_str);
-		                                                  config->ClearConfig(fs_str, op_enum);
-		                                                  return true;
-	                                                  });
+	result.SetValue(0, Value::BOOLEAN(true));
 }
 
 //===--------------------------------------------------------------------===//
@@ -223,7 +199,6 @@ unique_ptr<FunctionData> ListFilesystemsBind(ClientContext &context, TableFuncti
                                              vector<LogicalType> &return_types, vector<string> &names) {
 	names.emplace_back("name");
 	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
-
 	return nullptr;
 }
 
@@ -283,21 +258,25 @@ void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &re
 
 ScalarFunction GetRateLimitFsQuotaFunction() {
 	return ScalarFunction("rate_limit_fs_quota",
-	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR},
-	                       LogicalType {LogicalTypeId::BIGINT}, LogicalType {LogicalTypeId::VARCHAR}},
+	                      {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*operation=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*value=*/LogicalType {LogicalTypeId::BIGINT},
+	                       /*mode=*/LogicalType {LogicalTypeId::VARCHAR}},
 	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsQuotaFunction);
 }
 
 ScalarFunction GetRateLimitFsBurstFunction() {
 	return ScalarFunction("rate_limit_fs_burst",
-	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR},
-	                       LogicalType {LogicalTypeId::BIGINT}},
+	                      {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*operation=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*value=*/LogicalType {LogicalTypeId::BIGINT}},
 	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsBurstFunction);
 }
 
 ScalarFunction GetRateLimitFsClearFunction() {
 	return ScalarFunction("rate_limit_fs_clear",
-	                      {LogicalType {LogicalTypeId::VARCHAR}, LogicalType {LogicalTypeId::VARCHAR}},
+	                      {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*operation=*/LogicalType {LogicalTypeId::VARCHAR}},
 	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsClearFunction);
 }
 
@@ -314,7 +293,7 @@ TableFunction GetRateLimitFsListFilesystemsFunction() {
 }
 
 ScalarFunction GetRateLimitFsWrapFunction() {
-	return ScalarFunction("rate_limit_fs_wrap", {LogicalType {LogicalTypeId::VARCHAR}},
+	return ScalarFunction("rate_limit_fs_wrap", {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR}},
 	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsWrapFunction);
 }
 
