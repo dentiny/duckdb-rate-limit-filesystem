@@ -1,0 +1,207 @@
+# name: test/sql/rate_limit_fs_behavior.test
+# description: Test that rate limiting actually works after wrapping a filesystem
+# group: [sql]
+
+require rate_limit_filesystem
+
+# Wrap the fake filesystem
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
+# The fake filesystem handles paths starting with /tmp/fake_rate_limit_fs/
+
+# =============================================================================
+# Test LIST operation rate limiting (non-blocking mode)
+# =============================================================================
+
+# Set very low rate limit: 1 list operation per second, non-blocking
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'list', 1, 'non_blocking');
+----
+true
+
+# First list operation should succeed
+query I
+SELECT COUNT(*) >= 0 FROM glob('/tmp/fake_rate_limit_fs/*.txt');
+----
+true
+
+# Second immediate list operation should fail (rate limit exceeded)
+statement error
+SELECT COUNT(*) FROM glob('/tmp/fake_rate_limit_fs/*.txt');
+----
+Rate limit exceeded
+
+# Clear for next test
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Test LIST operation rate limiting (blocking mode)
+# =============================================================================
+
+# Set rate limit in blocking mode - should wait instead of throwing
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'list', 100, 'blocking');
+----
+true
+
+# Multiple list operations should succeed (blocking mode waits if needed)
+query I
+SELECT COUNT(*) >= 0 FROM glob('/tmp/fake_rate_limit_fs/*.txt');
+----
+true
+
+query I
+SELECT COUNT(*) >= 0 FROM glob('/tmp/fake_rate_limit_fs/*.txt');
+----
+true
+
+# Clear for next test
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Test WRITE operation rate limiting (non-blocking mode with burst)
+# =============================================================================
+
+# Set write rate limit: 100 bytes/sec, 1000 byte burst, non-blocking
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 100, 'non_blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 1000);
+----
+true
+
+# First write within burst should succeed (generate ~500 bytes)
+statement ok
+COPY (SELECT i AS id, 'test_value_' || i AS value FROM range(20) t(i))
+TO '/tmp/fake_rate_limit_fs/test_write1.csv';
+
+# Second immediate write should fail (exceeds total burst capacity of 1000 bytes)
+# This write generates ~1500+ bytes, which exceeds the 1000 byte burst limit
+statement error
+COPY (SELECT i AS id, 'another_test_value_' || i || '_with_longer_description_text' AS value FROM range(100) t(i))
+TO '/tmp/fake_rate_limit_fs/test_write2.csv';
+----
+exceeds burst capacity
+
+# Clear for next test
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Test WRITE then READ operation rate limiting
+# =============================================================================
+
+# First, write a large CSV file (no rate limit for write)
+# Generate ~10KB of data
+statement ok
+COPY (
+    SELECT 
+        i AS id, 
+        'name_' || i AS name,
+        'This is a longer description for row number ' || i || ' to make the file larger' AS description,
+        i * 1.5 AS value
+    FROM range(200) t(i)
+)
+TO '/tmp/fake_rate_limit_fs/large_test_data.csv';
+
+# Now set read rate limit: 1000 bytes/sec, 20000 byte burst, non-blocking
+# The file is ~18KB, so first read fits in burst, second immediate read exceeds remaining capacity
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000, 'non_blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 20000);
+----
+true
+
+# First read should succeed (within burst of 20000 bytes)
+query I
+SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
+----
+200
+
+# Second immediate read of the same large file should fail (burst exhausted, rate limit exceeded)
+statement error
+SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
+----
+Rate limit exceeded
+
+# Clear for next test
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Test WRITE operation rate limiting (blocking mode with burst)
+# =============================================================================
+
+# Set write rate limit in blocking mode - should wait instead of throwing
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 10000, 'blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write', 50000);
+----
+true
+
+# Writes should succeed (blocking mode waits if needed)
+statement ok
+COPY (SELECT i AS id, 'blocking_test_' || i AS value FROM range(100) t(i))
+TO '/tmp/fake_rate_limit_fs/test_blocking_write.csv';
+
+# Clear for next test
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Test READ operation rate limiting (blocking mode with burst)
+# =============================================================================
+
+# Set read rate limit in blocking mode
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 100000, 'blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 500000);
+----
+true
+
+# Reads should succeed (blocking mode waits if needed)
+query I
+SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
+----
+200
+
+query I
+SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
+----
+200
+
+# Cleanup all configs
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true

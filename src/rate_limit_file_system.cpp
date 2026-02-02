@@ -67,6 +67,10 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 	}
 
 	if (op_config->mode == RateLimitMode::NON_BLOCKING) {
+		if (result->wait_duration == Duration::max()) {
+			throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
+			                  FileSystemOperationToString(operation));
+		}
 		throw IOException("Rate limit exceeded for operation '%s': would need to wait %lld ms",
 		                  FileSystemOperationToString(operation),
 		                  std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count());
