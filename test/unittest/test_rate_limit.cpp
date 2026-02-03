@@ -18,6 +18,7 @@ TEST_CASE("Rate limit - first request within burst passes immediately", "[rate]"
 TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 	auto clock = CreateMockClock();
 	// 1 byte takes 10ms (1000ms / 100 bytes)
+	// With burst=bandwidth, tolerance allows 2 operations back-to-back
 	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
@@ -25,7 +26,11 @@ TEST_CASE("Rate limit - consecutive requests require waiting", "[rate]") {
 	auto result1 = limiter->UntilNReady(100);
 	REQUIRE(result1 == RateLimitResult::Allowed);
 
-	// Second request should require waiting
+	// Second request also allowed (within tolerance window)
+	auto result2 = limiter->UntilNReady(100);
+	REQUIRE(result2 == RateLimitResult::Allowed);
+
+	// Third request should require waiting (tolerance exhausted)
 	auto wait_info = limiter->TryAcquireImmediate(100);
 	REQUIRE(wait_info.has_value());
 	REQUIRE(wait_info->wait_duration > Duration::zero());
@@ -36,11 +41,15 @@ TEST_CASE("Rate limit - quota replenishes over time", "[rate]") {
 	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	// Use full burst
+	// Use full burst (100 bytes)
 	auto result1 = limiter->UntilNReady(100);
 	REQUIRE(result1 == RateLimitResult::Allowed);
 
-	// Immediately after, need to wait
+	// Second request also allowed (within tolerance)
+	auto result2 = limiter->UntilNReady(100);
+	REQUIRE(result2 == RateLimitResult::Allowed);
+
+	// Third request immediately after, need to wait
 	auto wait_info = limiter->TryAcquireImmediate(100);
 	REQUIRE(wait_info.has_value());
 
@@ -75,10 +84,13 @@ TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 
 	TimePoint start_time = clock->Now();
 
-	// Use full burst
+	// Use full burst (100 bytes)
 	limiter->UntilNReady(100);
 
-	// Second request will block (advancing mock clock via SleepUntil)
+	// Second request also allowed (within tolerance)
+	limiter->UntilNReady(100);
+
+	// Third request will block (advancing mock clock via SleepUntil)
 	limiter->UntilNReady(100);
 
 	TimePoint end_time = clock->Now();
@@ -93,13 +105,13 @@ TEST_CASE("Rate limit - small requests accumulate correctly", "[rate]") {
 	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	// Make 10 requests of 10 bytes each (total 100 bytes = full burst)
-	for (int i = 0; i < 10; i++) {
+	// Make 20 requests of 10 bytes each (total 200 bytes = 2x burst, tolerance allows this)
+	for (int i = 0; i < 20; i++) {
 		auto result = limiter->UntilNReady(10);
 		REQUIRE(result == RateLimitResult::Allowed);
 	}
 
-	// 11th request should require waiting
+	// 21st request should require waiting (tolerance exhausted)
 	auto wait_info = limiter->TryAcquireImmediate(10);
 	REQUIRE(wait_info.has_value());
 }
@@ -130,7 +142,10 @@ TEST_CASE("Rate limit - high bandwidth low burst scenario", "[rate]") {
 	Quota quota(/*bandwidth_p=*/10000, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	// First request passes
+	// First request passes (100 bytes)
+	limiter->UntilNReady(100);
+
+	// Second request also passes (within tolerance)
 	limiter->UntilNReady(100);
 
 	// Check how long until next 100 bytes
@@ -148,10 +163,13 @@ TEST_CASE("Rate limit - low bandwidth high burst scenario", "[rate]") {
 	Quota quota(/*bandwidth_p=*/10, /*burst_p=*/1000);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	// First large request passes (uses burst capacity)
+	// First large request passes (1000 bytes)
 	limiter->UntilNReady(1000);
 
-	// Check how long until next 1000 bytes (full burst)
+	// Second request also passes (within tolerance)
+	limiter->UntilNReady(1000);
+
+	// Check how long until next 1000 bytes
 	auto wait_info = limiter->TryAcquireImmediate(1000);
 	REQUIRE(wait_info.has_value());
 

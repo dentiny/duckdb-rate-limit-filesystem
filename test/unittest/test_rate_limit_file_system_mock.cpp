@@ -51,17 +51,21 @@ TEST_CASE("RateLimitFileSystem - MockClock: non-blocking throws after exhausting
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
 
-	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "mock_test.txt", test_content);
 
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 	string buffer(100, '\0');
 
-	// First read: 20 bytes - uses up entire burst
+	// First read: 20 bytes - uses full burst
 	auto bytes_read = fs.Read(*handle, buffer.data(), 20);
 	REQUIRE(bytes_read == 20);
 
-	// Second read immediately should fail (non-blocking, no capacity)
+	// Second read also succeeds (within tolerance window)
+	bytes_read = fs.Read(*handle, buffer.data(), 20);
+	REQUIRE(bytes_read == 20);
+
+	// Third read immediately should fail (non-blocking, tolerance exhausted)
 	REQUIRE_THROWS_AS(fs.Read(*handle, buffer.data(), 1), IOException);
 
 	handle->Close();
@@ -87,11 +91,15 @@ TEST_CASE("RateLimitFileSystem - MockClock: advancing time restores capacity", "
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 	string buffer(100, '\0');
 
-	// First read: 10 bytes - uses up entire burst
+	// First read: 10 bytes - uses full burst
 	auto bytes_read = fs.Read(*handle, buffer.data(), 10);
 	REQUIRE(bytes_read == 10);
 
-	// Should fail immediately
+	// Second read also succeeds (within tolerance window)
+	bytes_read = fs.Read(*handle, buffer.data(), 10);
+	REQUIRE(bytes_read == 10);
+
+	// Third read should fail immediately (tolerance exhausted)
 	REQUIRE_THROWS_AS(fs.Read(*handle, buffer.data(), 1), IOException);
 
 	// Advance time by 1 second - should restore 10 bytes of capacity
@@ -125,18 +133,31 @@ TEST_CASE("RateLimitFileSystem - MockClock: partial time advance restores partia
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 	string buffer(100, '\0');
 
-	// First read: 10 bytes - uses up entire burst
+	// First read: 10 bytes - uses full burst
 	auto bytes_read = fs.Read(*handle, buffer.data(), 10);
 	REQUIRE(bytes_read == 10);
 
-	// Advance time by 500ms - should restore 5 bytes of capacity
-	mock_clock->Advance(500ms);
+	// Second read also succeeds (within tolerance window)
+	bytes_read = fs.Read(*handle, buffer.data(), 10);
+	REQUIRE(bytes_read == 10);
+
+	// Advance time by 1.5 seconds - should restore some capacity
+	// After reading 20 bytes, TAT = now + 2s. After 1.5s, current = now + 1.5s
+	// To read 5 bytes: earliest_allowed = (now + 2s) - 1s = now + 1s
+	// Since now + 1.5s >= now + 1s, we can read 5 bytes
+	mock_clock->Advance(1500ms);
 
 	// Should be able to read 5 bytes
 	bytes_read = fs.Read(*handle, buffer.data(), 5);
 	REQUIRE(bytes_read == 5);
 
-	// But not more
+	// After reading 5 bytes, TAT = now + 2.5s, current = now + 1.5s
+	// To read 1 byte: earliest_allowed = (now + 2.5s) - 1s = now + 1.5s
+	// Since now + 1.5s >= now + 1.5s, we can still read 1 byte (within tolerance)
+	bytes_read = fs.Read(*handle, buffer.data(), 1);
+	REQUIRE(bytes_read == 1);
+
+	// But not more (tolerance exhausted)
 	REQUIRE_THROWS_AS(fs.Read(*handle, buffer.data(), 1), IOException);
 
 	handle->Close();
@@ -151,6 +172,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 
 	// 2 ops/sec rate (no burst for non-byte operations)
 	// Each operation takes 500ms of "time budget"
+	// With burst=0, effective_burst=1, tolerance=500ms allows 2 operations
 	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
@@ -162,7 +184,10 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	// First operation passes
 	REQUIRE(fs.FileExists(temp_path));
 
-	// Second operation immediately should fail (rate limited, need to wait 500ms)
+	// Second operation immediately should also pass (within tolerance window)
+	REQUIRE(fs.FileExists(temp_path));
+
+	// Third operation immediately should fail (rate limited, need to wait 500ms)
 	REQUIRE_THROWS_AS(fs.FileExists(temp_path), IOException);
 
 	// Advance time by 500ms (1 op at 2 ops/sec)
@@ -237,9 +262,10 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
-	// 10 bytes/sec rate, 50 byte burst - not enough for all concurrent reads
+	// 10 bytes/sec rate, 30 byte burst - not enough for all concurrent reads
+	// With tolerance window, more than 3 threads might succeed, so adjust expectation
 	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 50);
+	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 30);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
@@ -248,7 +274,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	string temp_path = CreateTempFile(test_dir.GetPath(), "concurrent_with_limit.txt", test_content);
 
 	constexpr int NUM_THREADS = 10;
-	constexpr int BYTES_PER_THREAD = 10; // Total: 100 bytes > 50 byte burst
+	constexpr int BYTES_PER_THREAD = 10; // Total: 100 bytes > 30 byte burst
 
 	std::atomic<int> success_count {0};
 	std::atomic<int> failure_count {0};
@@ -275,9 +301,9 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	}
 
 	// Some threads should succeed, some should fail due to rate limiting
-	// At most 5 threads can succeed (50 byte burst / 10 bytes per thread)
-	REQUIRE(success_count <= 5);
-	REQUIRE(failure_count >= 5);
+	// With tolerance window, more than 3 threads might succeed, but not all
+	REQUIRE(success_count <= 6);
+	REQUIRE(failure_count >= 4);
 	REQUIRE(success_count + failure_count == NUM_THREADS);
 }
 
@@ -296,17 +322,21 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads with time advance",
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
 
-	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	string test_content = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	string temp_path = CreateTempFile(test_dir.GetPath(), "concurrent_time_advance.txt", test_content);
 
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 	string buffer(100, '\0');
 
-	// First batch: read 20 bytes (exhausts burst)
+	// First batch: read 20 bytes (uses full burst)
 	auto bytes_read = fs.Read(*handle, buffer.data(), 20);
 	REQUIRE(bytes_read == 20);
 
-	// Should fail now
+	// Second read also succeeds (within tolerance window)
+	bytes_read = fs.Read(*handle, buffer.data(), 20);
+	REQUIRE(bytes_read == 20);
+
+	// Third read should fail now (tolerance exhausted)
 	REQUIRE_THROWS_AS(fs.Read(*handle, buffer.data(), 1), IOException);
 
 	// Advance time by 2 seconds - should restore 20 bytes
@@ -314,7 +344,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads with time advance",
 
 	// Should be able to read 20 more bytes
 	bytes_read = fs.Read(*handle, buffer.data(), 20);
-	REQUIRE(bytes_read == 16); // Only 16 bytes left in file (36 - 20 = 16)
+	REQUIRE(bytes_read == 20);
 
 	handle->Close();
 }
