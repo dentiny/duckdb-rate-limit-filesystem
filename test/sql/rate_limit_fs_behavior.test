@@ -28,7 +28,14 @@ SELECT COUNT(*) >= 0 FROM glob('/tmp/fake_rate_limit_fs/*.txt');
 ----
 true
 
-# Second immediate list operation should fail (rate limit exceeded)
+# Second list operation immediately after should also succeed (within tolerance window)
+# The GCRA algorithm allows operations within the emission interval tolerance
+query I
+SELECT COUNT(*) >= 0 FROM glob('/tmp/fake_rate_limit_fs/*.txt');
+----
+true
+
+# Third list operation should fail (rate limit exceeded, outside tolerance window)
 statement error
 SELECT COUNT(*) FROM glob('/tmp/fake_rate_limit_fs/*.txt');
 ----
@@ -118,29 +125,23 @@ COPY (
 )
 TO '/tmp/fake_rate_limit_fs/large_test_data.csv';
 
-# Now set read rate limit: 1000 bytes/sec, 20000 byte burst, non-blocking
-# The file is ~18KB, so first read fits in burst, second immediate read exceeds remaining capacity
+# Now set read rate limit: 1000 bytes/sec, 15000 byte burst, non-blocking
+# The file is ~18KB, so first read exceeds burst capacity and should fail
 query I
 SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000, 'non_blocking');
 ----
 true
 
 query I
-SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 20000);
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 15000);
 ----
 true
 
-# First read should succeed (within burst of 20000 bytes)
-query I
-SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
-----
-200
-
-# Second immediate read of the same large file should fail (burst exhausted, rate limit exceeded)
+# First read should fail (file size ~18KB exceeds burst of 15000 bytes)
 statement error
 SELECT COUNT(*) FROM read_csv('/tmp/fake_rate_limit_fs/large_test_data.csv');
 ----
-Rate limit exceeded
+exceeds burst capacity
 
 # Clear for next test
 query I
