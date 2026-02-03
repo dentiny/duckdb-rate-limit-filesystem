@@ -3,8 +3,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
-
-#include <thread>
+#include "duckdb/logging/logger.hpp"
 
 namespace duckdb {
 
@@ -80,6 +79,13 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 	}
 
 	// Blocking mode: wait until ready
+	auto db = config->GetDatabaseInstance();
+	DUCKDB_LOG_DEBUG(
+	    *db, StringUtil::Format("Rate limit triggered (blocking mode) for filesystem '%s', operation '%s': "
+	                            "waiting %lld ms for %llu bytes",
+	                            filesystem_name.c_str(), FileSystemOperationToString(operation),
+	                            std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count(),
+	                            bytes));
 	auto wait_result = rate_limiter->UntilNReady(bytes);
 	if (wait_result == RateLimitResult::InsufficientCapacity) {
 		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
