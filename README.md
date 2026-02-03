@@ -22,36 +22,7 @@ The Rate Limit Filesystem extension wraps any DuckDB filesystem with rate limiti
   - **Non-blocking mode**: Operations fail immediately if the rate limit would be exceeded
 - **Per-Filesystem Configuration**: Apply different rate limits to different filesystems
 
-The extension uses the GCRA (Generic Cell Rate Algorithm) rate limiting algorithm, which provides smooth rate limiting with burst support and nanosecond-precision timing.
-
-## Installation
-
-### Building from Source
-
-This extension is built using DuckDB's extension build system. First, ensure you have the DuckDB submodule:
-
-```bash
-git clone --recurse-submodules https://github.com/<your-repo>/duckdb-rate-limit-filesystem.git
-cd duckdb-rate-limit-filesystem
-```
-
-Then build the extension:
-
-```bash
-make
-```
-
-This will create:
-- `./build/release/duckdb` - DuckDB shell with the extension pre-loaded
-- `./build/release/extension/rate_limit_fs/rate_limit_fs.duckdb_extension` - Loadable extension binary
-
-### Loading the Extension
-
-If you built from source, the extension is already loaded in the DuckDB shell. Otherwise, load it with:
-
-```sql
-LOAD rate_limit_fs;
-```
+The extension uses the [GCRA (Generic Cell Rate Algorithm)](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) rate limiting algorithm, instead of [token bucket algorithm](https://en.wikipedia.org/wiki/Token_bucket) so tokens don't need to be updated periodically, which provides smooth rate limiting with burst support and nanosecond-precision timing.
 
 ## How to Use
 
@@ -233,6 +204,7 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - LocalFileSystem', 'read', 1048
 
 ```sql
 -- Load the extension
+FORCE INSTALL rate_limit_fs FROM community;
 LOAD rate_limit_fs;
 
 -- List available filesystems
@@ -252,36 +224,10 @@ SELECT rate_limit_fs_burst('RateLimitFileSystem - LocalFileSystem', 'write', 524
 -- View all configurations
 SELECT * FROM rate_limit_fs_configs();
 
--- Use the rate-limited filesystem (operations will be rate limited automatically)
+-- Use the rate-limited filesystem (operations will be rate limited automatically, no need to change existing code)
 SELECT * FROM read_csv('/path/to/large_file.csv');
 COPY (SELECT * FROM my_table) TO '/path/to/output.csv';
 
--- Clean up: clear all configurations
+-- Clean up: clear all configurations on all filesystems
 SELECT rate_limit_fs_clear('*', '*');
 ```
-
-## Testing
-
-Run the test suite:
-
-```bash
-make test
-```
-
-The extension includes comprehensive SQL tests in `test/sql/` and unit tests in `test/unittest/`.
-
-## Technical Details
-
-- **Rate Limiting Algorithm**: GCRA (Generic Cell Rate Algorithm) with leaky bucket semantics
-- **Precision**: Nanosecond-precision timing
-- **Thread Safety**: Thread-safe implementation using atomic operations
-- **Configuration Storage**: Per-DuckDB-instance configuration stored in the object cache
-
-## License
-
-See [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-This extension is based on the [DuckDB Extension Template](https://github.com/duckdb/extension-template). For more information on building and distributing DuckDB extensions, see the [docs/README.md](docs/README.md) file.
-
