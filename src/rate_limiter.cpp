@@ -82,11 +82,11 @@ RateLimiterState::RateLimiterState() : tat_nanos(0) {
 }
 
 int64_t RateLimiterState::GetTatNanos() const {
-	return tat_nanos.load(std::memory_order_acquire);
+	return tat_nanos.load(std::memory_order_seq_cst);
 }
 
 bool RateLimiterState::CompareExchangeTat(int64_t &expected, int64_t desired) {
-	return tat_nanos.compare_exchange_weak(expected, desired, std::memory_order_release, std::memory_order_relaxed);
+	return tat_nanos.compare_exchange_strong(expected, desired, std::memory_order_seq_cst, std::memory_order_seq_cst);
 }
 
 //===--------------------------------------------------------------------===//
