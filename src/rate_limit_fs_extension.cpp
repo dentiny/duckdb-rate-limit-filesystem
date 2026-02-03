@@ -1,8 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
-#include "rate_limit_filesystem_extension.hpp"
-#include "fake_filesystem.hpp"
-#include "rate_limit_functions.hpp"
+#include "rate_limit_fs_extension.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -10,6 +8,8 @@
 #include "duckdb/common/opener_file_system.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "fake_filesystem.hpp"
+#include "rate_limit_functions.hpp"
 
 namespace duckdb {
 
@@ -35,16 +35,16 @@ void LoadInternal(ExtensionLoader &loader) {
 }
 } // namespace
 
-void RateLimitFilesystemExtension::Load(ExtensionLoader &loader) {
+void RateLimitFsExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-std::string RateLimitFilesystemExtension::Name() {
-	return "rate_limit_filesystem";
+std::string RateLimitFsExtension::Name() {
+	return "rate_limit_fs";
 }
 
-std::string RateLimitFilesystemExtension::Version() const {
-#ifdef EXT_VERSION_RATE_LIMIT_FILESYSTEM
-	return EXT_VERSION_RATE_LIMIT_FILESYSTEM;
+std::string RateLimitFsExtension::Version() const {
+#ifdef EXT_VERSION_RATE_LIMIT_FS
+	return EXT_VERSION_RATE_LIMIT_FS;
 #else
 	return "";
 #endif
@@ -54,7 +54,7 @@ std::string RateLimitFilesystemExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_CPP_EXTENSION_ENTRY(rate_limit_filesystem, loader) {
+DUCKDB_CPP_EXTENSION_ENTRY(rate_limit_fs, loader) {
 	duckdb::LoadInternal(loader);
 }
 }

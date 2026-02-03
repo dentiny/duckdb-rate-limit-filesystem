@@ -2,7 +2,7 @@
 # description: Test rate_limit_fs_wrap() function
 # group: [sql]
 
-require rate_limit_filesystem
+require rate_limit_fs
 
 # Wrap the fake filesystem with rate limiting
 query I

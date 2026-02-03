@@ -2,7 +2,7 @@
 # description: test basic rate limit configuration operations
 # group: [sql]
 
-require rate_limit_filesystem
+require rate_limit_fs
 
 # First wrap the fake filesystem so rate limiting can be applied
 query I

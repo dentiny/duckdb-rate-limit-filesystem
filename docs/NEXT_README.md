@@ -26,18 +26,18 @@ The main binaries that will be built are:
 ```sh
 ./build/release/duckdb
 ./build/release/test/unittest
-./build/release/extension/rate_limit_filesystem/rate_limit_filesystem.duckdb_extension
+./build/release/extension/rate_limit_fs/rate_limit_fs.duckdb_extension
 ```
 - `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `rate_limit_filesystem.duckdb_extension` is the loadable binary as it would be distributed.
+- `rate_limit_fs.duckdb_extension` is the loadable binary as it would be distributed.
 
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `rate_limit_filesystem()` that takes a string arguments and returns a string:
+Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `rate_limit_fs()` that takes a string arguments and returns a string:
 ```
-D select rate_limit_filesystem('Jane') as result;
+D select rate_limit_fs('Jane') as result;
 ┌────────────────────────────────┐
 │            result              │
 │            varchar             │
@@ -81,8 +81,8 @@ DuckDB. To specify a specific version, you can pass the version instead.
 
 After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
 ```sql
-INSTALL rate_limit_filesystem;
-LOAD rate_limit_filesystem;
+INSTALL rate_limit_fs;
+LOAD rate_limit_fs;
 ```
 
 ## Setting up CLion

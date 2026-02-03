@@ -2,7 +2,7 @@
 # description: Test that rate limiting actually works after wrapping a filesystem
 # group: [sql]
 
-require rate_limit_filesystem
+require rate_limit_fs
 
 # Wrap the fake filesystem
 query I

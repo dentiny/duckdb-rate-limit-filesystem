@@ -2,6 +2,14 @@
 
 A DuckDB extension that provides rate limiting capabilities for filesystem operations. This extension allows you to control the bandwidth and rate of file system operations (read, write, list, stat, delete) to prevent overwhelming storage systems or comply with API rate limits.
 
+## Loading rate limit filesystem
+Since DuckDB v1.0.0, cache httpfs can be loaded as a community extension without requiring the `unsigned` flag. From any DuckDB instance, the following two commands will allow you to install and load the extension:
+```sql
+INSTALL rate_limit_fs from community;
+-- Or upgrade to latest version with `FORCE INSTALL rate_limit_fs from community;`
+LOAD rate_limit_fs;
+```
+
 ## What Does This Project Do?
 
 The Rate Limit Filesystem extension wraps any DuckDB filesystem with rate limiting functionality. It provides:
@@ -35,14 +43,14 @@ make
 
 This will create:
 - `./build/release/duckdb` - DuckDB shell with the extension pre-loaded
-- `./build/release/extension/rate_limit_filesystem/rate_limit_filesystem.duckdb_extension` - Loadable extension binary
+- `./build/release/extension/rate_limit_fs/rate_limit_fs.duckdb_extension` - Loadable extension binary
 
 ### Loading the Extension
 
 If you built from source, the extension is already loaded in the DuckDB shell. Otherwise, load it with:
 
 ```sql
-LOAD rate_limit_filesystem;
+LOAD rate_limit_fs;
 ```
 
 ## How to Use
@@ -225,7 +233,7 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - LocalFileSystem', 'read', 1048
 
 ```sql
 -- Load the extension
-LOAD rate_limit_filesystem;
+LOAD rate_limit_fs;
 
 -- List available filesystems
 SELECT * FROM rate_limit_fs_list_filesystems();

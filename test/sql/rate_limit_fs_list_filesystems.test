@@ -2,7 +2,7 @@
 # description: Test rate_limit_fs_list_filesystems() function
 # group: [sql]
 
-require rate_limit_filesystem
+require rate_limit_fs
 
 # Test listing filesystems returns results
 statement ok
