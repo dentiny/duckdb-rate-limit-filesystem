@@ -4,8 +4,6 @@
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/unordered_map.hpp"
-#include "duckdb/main/client_context.hpp"
-#include "duckdb/main/database.hpp"
 #include "duckdb/storage/object_cache.hpp"
 
 #include "base_clock.hpp"
@@ -15,6 +13,10 @@
 #include "rate_limiter.hpp"
 
 namespace duckdb {
+
+// Forward declaration.
+class ClientContext;
+class DatabaseInstance;
 
 // Configuration for a single operation's rate limiting.
 struct OperationConfig {
@@ -118,7 +120,7 @@ private:
 	unordered_map<ConfigKey, OperationConfig, ConfigKeyHash> configs DUCKDB_GUARDED_BY(config_lock);
 	// Clock to use for rate limiters (nullptr means use default clock).
 	shared_ptr<BaseClock> clock DUCKDB_GUARDED_BY(config_lock);
-	// Weak pointer to database instance for logging (stored as weak_ptr to avoid circular references).
+	// Weak pointer to database instance for logging, stored as weak pointer to avoid circular references.
 	weak_ptr<DatabaseInstance> db_instance DUCKDB_GUARDED_BY(config_lock);
 };
 

@@ -2,6 +2,7 @@
 
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
 
 namespace duckdb {
@@ -160,7 +161,7 @@ shared_ptr<RateLimitConfig> RateLimitConfig::GetOrCreate(ClientContext &context)
 	auto &cache = ObjectCache::GetObjectCache(context);
 	auto config = cache.GetOrCreate<RateLimitConfig>(CACHE_KEY);
 
-	// Set the database instance for logging (if not already set)
+	// Set the database instance for logging
 	{
 		concurrency::lock_guard<concurrency::mutex> guard(config->config_lock);
 		if (config->db_instance.expired()) {
@@ -181,7 +182,7 @@ shared_ptr<DatabaseInstance> RateLimitConfig::GetDatabaseInstance() const {
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto db = db_instance.lock();
 	if (!db) {
-		throw InternalException("Database instance is no longer available for rate limit logging");
+		throw InternalException("Database instance is no longer available");
 	}
 	return db;
 }
