@@ -80,9 +80,9 @@ GEN=ninja make
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`. This shell will have the extension pre-loaded.  
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `rate_limit_filesystem()` that takes a string arguments and returns a string:
+Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `rate_limit_fs()` that takes a string arguments and returns a string:
 ```
-D select rate_limit_filesystem('Jane') as result;
+D select rate_limit_fs('Jane') as result;
 ┌────────────────────────────────┐
 │            result              │
 │            varchar             │

@@ -2,7 +2,7 @@
 # description: test rate limit configuration error cases
 # group: [sql]
 
-require rate_limit_filesystem
+require rate_limit_fs
 
 # Test error: non-existent filesystem for quota
 statement error

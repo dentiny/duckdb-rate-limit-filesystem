@@ -4,7 +4,7 @@
 
 namespace duckdb {
 
-class RateLimitFilesystemExtension : public Extension {
+class RateLimitFsExtension : public Extension {
 public:
 	void Load(ExtensionLoader &db) override;
 	std::string Name() override;
