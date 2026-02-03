@@ -4,6 +4,8 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/opener_file_system.hpp"
+#include "duckdb/common/string_util.hpp"
+#include "duckdb/logging/logger.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
 #include "file_system_operation.hpp"
@@ -246,9 +248,15 @@ void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &re
 
 		// Wrap it with RateLimitFileSystem
 		auto wrapped_fs = make_uniq<RateLimitFileSystem>(std::move(extracted_fs), config);
+		string wrapped_name = wrapped_fs->GetName();
 
 		// Register the wrapped filesystem
 		vfs.RegisterSubSystem(std::move(wrapped_fs));
+
+		// Log filesystem registration
+		auto db = config->GetDatabaseInstance();
+		DUCKDB_LOG_DEBUG(*db, StringUtil::Format("Wrap filesystem %s with rate limit filesystem (registered as %s).",
+		                                         fs_str, wrapped_name));
 
 		return true;
 	});
