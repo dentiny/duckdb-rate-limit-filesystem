@@ -60,32 +60,27 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 		                        FileSystemOperationToString(operation));
 	}
 
-	auto result = rate_limiter->TryAcquireImmediate(bytes);
-	if (!result.has_value()) {
-		// Allowed immediately
-		return;
-	}
-
-	// Check if burst capacity is exceeded, which applies to both blocking and non-blocking modes
-	if (result->wait_duration == Duration::max()) {
-		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
-		                  FileSystemOperationToString(operation));
-	}
-
 	if (op_config->mode == RateLimitMode::NON_BLOCKING) {
+		// Non-blocking mode: check if we can acquire immediately, throw if not
+		auto result = rate_limiter->TryAcquireImmediate(bytes);
+		if (!result.has_value()) {
+			// Allowed immediately
+			return;
+		}
+
+		// Check if burst capacity is exceeded
+		if (result->wait_duration == Duration::max()) {
+			throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
+			                  FileSystemOperationToString(operation));
+		}
+
+		// Rate limit exceeded, throw immediately
 		throw IOException("Rate limit exceeded for operation '%s': would need to wait %lld ms",
 		                  FileSystemOperationToString(operation),
 		                  std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count());
 	}
 
-	// Blocking mode: wait until ready
-	auto db = config->GetDatabaseInstance();
-	DUCKDB_LOG_DEBUG(
-	    *db, StringUtil::Format("Rate limit triggered (blocking mode) for filesystem '%s', operation '%s': "
-	                            "waiting %lld ms for %llu bytes",
-	                            filesystem_name.c_str(), FileSystemOperationToString(operation),
-	                            std::chrono::duration_cast<std::chrono::milliseconds>(result->wait_duration).count(),
-	                            bytes));
+	// Blocking mode: wait until ready (don't call TryAcquireImmediate to avoid double update)
 	auto wait_result = rate_limiter->UntilNReady(bytes);
 	if (wait_result == RateLimitResult::InsufficientCapacity) {
 		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,

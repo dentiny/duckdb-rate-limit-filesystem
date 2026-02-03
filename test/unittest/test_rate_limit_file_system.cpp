@@ -135,12 +135,16 @@ TEST_CASE("RateLimitFileSystem - non-blocking mode throws on rate limit", "[rate
 
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 
-	// First read of 10 bytes should succeed (equals burst)
+	// First read of 10 bytes should succeed (uses full burst)
 	string buffer(100, '\0');
 	auto bytes_read = fs.Read(*handle, buffer.data(), 10);
 	REQUIRE(bytes_read == 10);
 
-	// Second immediate read should fail (rate limit exceeded, non-blocking)
+	// Second immediate read also succeeds (within tolerance window)
+	bytes_read = fs.Read(*handle, buffer.data(), 10);
+	REQUIRE(bytes_read == 10);
+
+	// Third immediate read should fail (rate limit exceeded, non-blocking)
 	REQUIRE_THROWS_AS(fs.Read(*handle, buffer.data(), 10), IOException);
 
 	handle->Close();
@@ -166,16 +170,19 @@ TEST_CASE("RateLimitFileSystem - list operations non-blocking mode", "[rate_limi
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Set rate limit for list: 1 op/sec (no burst for non-byte operations)
-	// Very low rate to ensure second immediate call exceeds limit
+	// With burst=0, effective_burst=1, tolerance=1 second allows 2 operations
 	config->SetQuota(TEST_FS_NAME, FileSystemOperation::LIST, 1, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
 
 	// First Glob should work
-	[[maybe_unused]] auto files = fs.Glob(test_dir.GetPath() + "/*.txt");
+	[[maybe_unused]] auto files1 = fs.Glob(test_dir.GetPath() + "/*.txt");
 
-	// Second immediate Glob should fail (rate limited, non-blocking throws)
+	// Second immediate Glob should also work (within tolerance window)
+	[[maybe_unused]] auto files2 = fs.Glob(test_dir.GetPath() + "/*.txt");
+
+	// Third immediate Glob should fail (rate limited, non-blocking throws)
 	REQUIRE_THROWS_AS(fs.Glob(test_dir.GetPath() + "/*.txt"), IOException);
 }
 
