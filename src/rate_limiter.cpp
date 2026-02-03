@@ -1,3 +1,27 @@
+/*
+Pseudocode for GCRA algorithm:
+state tat = 0   # shared, persistent
+
+function try_acquire_immediately(N):
+    if N == 0:
+        return ALLOWED
+
+    if N > burst_capacity:
+        return REJECTED  # too large ever to fit
+
+    now = current_time()
+
+    T = 1 / R
+    tolerance = burst_capacity * T
+
+    earliest_allowed = tat - tolerance
+    if now < earliest_allowed:
+        return REJECTED
+
+    tat = max(tat, now) + N * T
+    return ALLOWED
+*/
+
 #include "rate_limiter.hpp"
 
 #include "default_clock.hpp"
@@ -152,32 +176,26 @@ RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, idx_t n) {
 	auto emission_interval = quota.GetEmissionInterval();
 	auto delay_tolerance = quota.GetDelayTolerance();
 
-	int64_t now_nanos = ToNanos(now);
+	const int64_t now_nanos = ToNanos(now);
 
-	// Calculate the increment for n bytes
-	auto increment = emission_interval * n;
-	int64_t increment_nanos = std::chrono::duration_cast<Duration>(increment).count();
-	int64_t delay_tolerance_nanos = std::chrono::duration_cast<Duration>(delay_tolerance).count();
+	const int64_t increment_nanos = std::chrono::duration_cast<Duration>(emission_interval * n).count();
+	const int64_t tolerance_nanos = std::chrono::duration_cast<Duration>(delay_tolerance).count();
 
-	// Atomic CAS loop
-	int64_t current_tat_nanos = state->GetTatNanos();
+	int64_t current_tat = state->GetTatNanos();
 	while (true) {
-		// Calculate the new TAT
-		int64_t new_tat_nanos = std::max(current_tat_nanos, now_nanos) + increment_nanos;
-
-		// Calculate the earliest time this request could complete
-		int64_t earliest_nanos = new_tat_nanos - delay_tolerance_nanos;
-
-		if (earliest_nanos > now_nanos) {
-			// Need to wait - don't update state, just return wait info
-			return AcquireDecision {false, WaitInfo {FromNanos(earliest_nanos), Duration(earliest_nanos - now_nanos)}};
+		// GCRA admission test: now >= tat - tolerance
+		int64_t earliest_allowed = current_tat - tolerance_nanos;
+		if (now_nanos < earliest_allowed) {
+			return AcquireDecision {false,
+			                        WaitInfo {FromNanos(earliest_allowed), Duration(earliest_allowed - now_nanos)}};
 		}
 
-		// Try to update the TAT
-		if (state->CompareExchangeTat(current_tat_nanos, new_tat_nanos)) {
+		// Update TAT after passing admission test
+		int64_t new_tat = std::max(current_tat, now_nanos) + increment_nanos;
+		if (state->CompareExchangeTat(current_tat, new_tat)) {
 			return AcquireDecision {true, std::nullopt};
 		}
-		// CAS failed, current_tat_nanos has been updated with current value, retry
+		// CAS failed — retry with updated current_tat
 	}
 }
 
