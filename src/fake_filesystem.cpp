@@ -1,8 +1,48 @@
 #include "fake_filesystem.hpp"
 
+#include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace duckdb {
+
+namespace {
+string GetTemporaryDirectory() {
+#if defined(_WIN32)
+	char temp_path[MAX_PATH];
+	DWORD ret = GetTempPathA(MAX_PATH, temp_path);
+	if (ret > 0 && ret < MAX_PATH) {
+		// GetTempPath returns path with trailing backslash, remove it
+		string result(temp_path);
+		if (!result.empty() && (result.back() == '\\' || result.back() == '/')) {
+			result.pop_back();
+		}
+		return result;
+	}
+	// Fallback to environment variables
+	const char *temp = std::getenv("TEMP");
+	if (temp != nullptr) {
+		return string(temp);
+	}
+	const char *tmp = std::getenv("TMP");
+	if (tmp != nullptr) {
+		return string(tmp);
+	}
+	// Last resort fallback
+	return "C:\\Temp";
+#else
+	return "/tmp";
+#endif
+}
+string GetFakeFileSystemDirectory() {
+	auto temp_dir = GetTemporaryDirectory();
+	auto local_fs = LocalFileSystem::CreateLocal();
+	return local_fs->JoinPath(temp_dir, "fake_rate_limit_fs");
+}
+} // namespace
 
 RateLimitFsFakeFsHandle::RateLimitFsFakeFsHandle(string path, unique_ptr<FileHandle> internal_file_handle_p,
                                                  RateLimitFsFakeFileSystem &fs)
@@ -12,13 +52,14 @@ RateLimitFsFakeFsHandle::RateLimitFsFakeFsHandle(string path, unique_ptr<FileHan
 
 RateLimitFsFakeFileSystem::RateLimitFsFakeFileSystem() : local_filesystem(FileSystem::CreateLocal()) {
 	// Create the fake directory if it doesn't exist
-	if (!local_filesystem->DirectoryExists(FAKE_FS_PREFIX)) {
-		local_filesystem->CreateDirectory(FAKE_FS_PREFIX);
+	const auto fake_filesystem_directory = GetFakeFileSystemDirectory();
+	if (!local_filesystem->DirectoryExists(fake_filesystem_directory)) {
+		local_filesystem->CreateDirectory(fake_filesystem_directory);
 	}
 }
 
 bool RateLimitFsFakeFileSystem::CanHandleFile(const string &path) {
-	return StringUtil::StartsWith(path, FAKE_FS_PREFIX);
+	return StringUtil::StartsWith(path, GetFakeFileSystemDirectory());
 }
 
 unique_ptr<FileHandle> RateLimitFsFakeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
