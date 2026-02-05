@@ -5,6 +5,10 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+// Undefine Windows macros that conflict with DuckDB FileSystem method names
+#undef CreateDirectory
+#undef MoveFile
+#undef RemoveDirectory
 #endif
 
 namespace duckdb {
