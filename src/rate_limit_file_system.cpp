@@ -165,10 +165,6 @@ bool RateLimitFileSystem::FileExists(const string &filename, optional_ptr<FileOp
 	return inner_fs->FileExists(filename, opener);
 }
 
-bool RateLimitFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener> opener) {
-	return inner_fs->IsPipe(filename, opener);
-}
-
 void RateLimitFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	inner_fs->RemoveFile(filename, opener);
@@ -201,19 +197,17 @@ bool RateLimitFileSystem::ListFilesExtended(const string &directory,
 // Delegate to inner file system (no rate limiting)
 // ==========================================================================
 
-bool RateLimitFileSystem::CanHandleFile(const string &path) {
-	return inner_fs->CanHandleFile(path);
-}
-
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {
-	auto inner_handle = inner_fs->OpenFile(path, flags, opener);
-	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), path, flags);
+	return OpenFileExtended(OpenFileInfo(path), flags, opener);
 }
 
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
                                                              optional_ptr<FileOpener> opener) {
 	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
+	if (!inner_handle) {
+		return nullptr;
+	}
 	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), file.path, flags);
 }
 
@@ -239,6 +233,14 @@ void RateLimitFileSystem::Reset(FileHandle &handle) {
 
 idx_t RateLimitFileSystem::SeekPosition(FileHandle &handle) {
 	return inner_fs->SeekPosition(GetInnerFileHandle(handle));
+}
+
+bool RateLimitFileSystem::CanHandleFile(const string &path) {
+	return inner_fs->CanHandleFile(path);
+}
+
+bool RateLimitFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener> opener) {
+	return inner_fs->IsPipe(filename, opener);
 }
 
 bool RateLimitFileSystem::CanSeek() {
