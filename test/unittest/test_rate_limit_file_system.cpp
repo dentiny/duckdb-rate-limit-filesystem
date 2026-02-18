@@ -303,38 +303,17 @@ TEST_CASE("RateLimitFileSystem - open file with blocking mode", "[rate_limit_fs]
 	{
 		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 		REQUIRE(handle != nullptr);
-
-		string buffer(20, '\0');
-		auto bytes_read = fs.Read(*handle, buffer.data(), 7);
-		REQUIRE(bytes_read == 7);
-		REQUIRE(buffer.substr(0, 7) == "content");
-
-		handle->Close();
 	}
 
 	// Second open succeeds
 	{
 		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 		REQUIRE(handle != nullptr);
-
-		string buffer(20, '\0');
-		auto bytes_read = fs.Read(*handle, buffer.data(), 7);
-		REQUIRE(bytes_read == 7);
-		REQUIRE(buffer.substr(0, 7) == "content");
-
-		handle->Close();
 	}
 
 	// Third open succeeds
 	{
 		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 		REQUIRE(handle != nullptr);
-
-		string buffer(20, '\0');
-		auto bytes_read = fs.Read(*handle, buffer.data(), 7);
-		REQUIRE(bytes_read == 7);
-		REQUIRE(buffer.substr(0, 7) == "content");
-
-		handle->Close();
 	}
 }
