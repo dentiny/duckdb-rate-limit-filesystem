@@ -12,7 +12,7 @@ using namespace duckdb;
 namespace {
 
 constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs";
-// Wrapped filesystem name used for config lookups (RateLimitFileSystem uses GetName() internally)
+// Wrapped filesystem name used for config lookups
 constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
@@ -259,4 +259,61 @@ TEST_CASE("RateLimitFileSystem - per-filesystem config isolation", "[rate_limit_
 	REQUIRE(bytes_read == static_cast<int64_t>(test_content.length()));
 
 	handle->Close();
+}
+
+TEST_CASE("RateLimitFileSystem - file open is rate limited as STAT", "[rate_limit_fs]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto config = make_shared_ptr<RateLimitConfig>();
+	// STAT quota 1/sec, non-blocking: first open uses capacity, second immediate open throws
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 1, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	string path_a = CreateTempFile(test_dir.GetPath(), "open_a.txt", "a");
+	string path_b = CreateTempFile(test_dir.GetPath(), "open_b.txt", "b");
+	string path_c = CreateTempFile(test_dir.GetPath(), "open_c.txt", "c");
+
+	// First open succeeds
+	auto handle1 = fs.OpenFile(path_a, FileOpenFlags::FILE_FLAGS_READ);
+	REQUIRE(handle1 != nullptr);
+	handle1->Close();
+
+	// Second immediate open should work as well
+	auto handle2 = fs.OpenFile(path_b, FileOpenFlags::FILE_FLAGS_READ);
+	REQUIRE(handle2 != nullptr);
+	handle2->Close();
+
+	// Third open should fail
+	REQUIRE_THROWS_AS(fs.OpenFile(path_c, FileOpenFlags::FILE_FLAGS_READ), IOException);
+}
+
+TEST_CASE("RateLimitFileSystem - open file with blocking mode", "[rate_limit_fs]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto config = make_shared_ptr<RateLimitConfig>();
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+	string temp_path = CreateTempFile(test_dir.GetPath(), "extended_open.txt", "content");
+
+	// First open succeeds
+	{
+		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
+		REQUIRE(handle != nullptr);
+	}
+
+	// Second open succeeds
+	{
+		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
+		REQUIRE(handle != nullptr);
+	}
+
+	// Third open succeeds
+	{
+		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
+		REQUIRE(handle != nullptr);
+	}
 }

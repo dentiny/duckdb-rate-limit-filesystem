@@ -98,6 +98,21 @@ FileHandle &RateLimitFileSystem::GetInnerFileHandle(FileHandle &handle) {
 // Rate limited operations
 // ==========================================================================
 
+unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
+                                                     optional_ptr<FileOpener> opener) {
+	return OpenFileExtended(OpenFileInfo(path), flags, opener);
+}
+
+unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
+                                                             optional_ptr<FileOpener> opener) {
+	ApplyRateLimit(FileSystemOperation::STAT);
+	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
+	if (!inner_handle) {
+		return nullptr;
+	}
+	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), file.path, flags);
+}
+
 void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	auto &inner_handle = GetInnerFileHandle(handle);
 	// Truncate nr_bytes based on file size to rate limit only actual readable bytes
@@ -147,10 +162,6 @@ bool RateLimitFileSystem::DirectoryExists(const string &directory, optional_ptr<
 	return inner_fs->DirectoryExists(directory, opener);
 }
 
-void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
-	inner_fs->CreateDirectory(directory, opener);
-}
-
 void RateLimitFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	inner_fs->RemoveDirectory(directory, opener);
@@ -197,20 +208,6 @@ bool RateLimitFileSystem::ListFilesExtended(const string &directory,
 // Delegate to inner file system (no rate limiting)
 // ==========================================================================
 
-unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpenFlags flags,
-                                                     optional_ptr<FileOpener> opener) {
-	return OpenFileExtended(OpenFileInfo(path), flags, opener);
-}
-
-unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
-                                                             optional_ptr<FileOpener> opener) {
-	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
-	if (!inner_handle) {
-		return nullptr;
-	}
-	return make_uniq<RateLimitFileHandle>(*this, std::move(inner_handle), file.path, flags);
-}
-
 bool RateLimitFileSystem::SupportsOpenFileExtended() const {
 	return true;
 }
@@ -245,6 +242,10 @@ bool RateLimitFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener
 
 bool RateLimitFileSystem::CanSeek() {
 	return inner_fs->CanSeek();
+}
+
+void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	inner_fs->CreateDirectory(directory, opener);
 }
 
 bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {
