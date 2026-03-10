@@ -32,6 +32,9 @@ void LoadInternal(ExtensionLoader &loader) {
 	auto &opener_fs = db.GetFileSystem().Cast<OpenerFileSystem>();
 	auto &vfs = opener_fs.GetFileSystem();
 	vfs.RegisterSubSystem(make_uniq<RateLimitFsFakeFileSystem>());
+
+	// Add extension description.
+	loader.SetDescription("Extension to enforce configurable quotas and burst limits per operation.");
 }
 } // namespace
 
