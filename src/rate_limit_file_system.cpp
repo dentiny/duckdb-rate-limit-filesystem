@@ -137,6 +137,11 @@ int64_t RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_
 	return inner_fs->Write(GetInnerFileHandle(handle), buffer, nr_bytes);
 }
 
+FileMetadata RateLimitFileSystem::Stats(FileHandle &handle) {
+	ApplyRateLimit(FileSystemOperation::STAT);
+	return inner_fs->Stats(GetInnerFileHandle(handle));
+}
+
 int64_t RateLimitFileSystem::GetFileSize(FileHandle &handle) {
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->GetFileSize(GetInnerFileHandle(handle));
