@@ -92,6 +92,11 @@ int64_t RateLimitFsFakeFileSystem::Write(FileHandle &handle, void *buffer, int64
 	return local_filesystem->Write(*local_filesystem_handle, buffer, nr_bytes);
 }
 
+FileMetadata RateLimitFsFakeFileSystem::Stats(FileHandle &handle) {
+	auto &local_filesystem_handle = handle.Cast<RateLimitFsFakeFsHandle>().internal_file_handle;
+	return local_filesystem->Stats(*local_filesystem_handle);
+}
+
 int64_t RateLimitFsFakeFileSystem::GetFileSize(FileHandle &handle) {
 	auto &local_filesystem_handle = handle.Cast<RateLimitFsFakeFsHandle>().internal_file_handle;
 	return local_filesystem->GetFileSize(*local_filesystem_handle);

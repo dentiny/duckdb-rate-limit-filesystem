@@ -54,6 +54,11 @@ public:
 	// Static method for ObjectCache::Get compatibility.
 	static string ObjectType();
 
+	optional_idx GetEstimatedCacheMemory() const override {
+		// Don't evict this entry.
+		return optional_idx {};
+	}
+
 	// Sets the quota for an operation on a specific filesystem.
 	void SetQuota(const string &filesystem_name, FileSystemOperation operation, idx_t value, RateLimitMode mode);
 
