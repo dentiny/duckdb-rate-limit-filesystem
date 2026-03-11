@@ -18,13 +18,6 @@ include_directories(
 
 file(GLOB_RECURSE EXTENSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
-if(NOT CLANG_TIDY)
-if(${BUILD_UNITTESTS})
-  add_subdirectory(test/unittest)
-endif()
-
-endif()
-
 set(PARAMETERS "-warnings")
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
@@ -45,3 +38,8 @@ install(
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
 )
+
+# Windows has link issues.
+if(NOT WIN32)
+  add_subdirectory(test/unittest)
+endif()
