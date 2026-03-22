@@ -1,3 +1,11 @@
+# 0.0.4
+
+## Add
+
+- Add operation-level concurrent limit ([#29])
+
+[#29]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/29
+
 # 0.0.3
 
 ## Changed
