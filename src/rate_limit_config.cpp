@@ -246,8 +246,12 @@ void RateLimitConfig::SetClock(shared_ptr<BaseClock> clock_p) {
 }
 
 void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
-	// Config should have been removed from the map if both quota and burst are 0
-	D_ASSERT(config.quota > 0 || config.burst > 0);
+	D_ASSERT(!config.IsEmpty());
+
+	if (config.quota == 0 && config.burst == 0) {
+		config.rate_limiter = nullptr;
+		return;
+	}
 
 	config.rate_limiter = CreateRateLimiter(config.quota, config.burst, clock);
 }
