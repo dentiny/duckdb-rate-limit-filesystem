@@ -21,10 +21,10 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'R
 true
 
 # Verify it's stored as lowercase
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	0
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	0	-1
 
 # Test mixed case operation
 query I
@@ -33,10 +33,10 @@ SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'R
 true
 
 # Verify burst was added to existing lowercase entry (UPSERT)
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	2000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	2000	-1
 
 # Clear for next tests
 query I
@@ -61,10 +61,10 @@ SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'r
 true
 
 # Test viewing the config
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000	-1
 
 # Test setting quota with non-blocking mode
 query I
@@ -79,12 +79,56 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'l
 true
 
 # Test viewing all configs
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() ORDER BY operation;
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	list	100	non_blocking	0
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000
-RateLimitFileSystem - RateLimitFsFakeFileSystem	write	500000	non_blocking	0
+RateLimitFileSystem - RateLimitFsFakeFileSystem	list	100	non_blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000000	blocking	5000000	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	write	500000	non_blocking	0	-1
+
+# Cleanup
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# =============================================================================
+# Max requests configuration tests
+# =============================================================================
+
+# Test setting max_requests
+query I
+SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 10);
+----
+true
+
+# Verify max_requests is visible in configs
+query IIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	0	none	0	10
+
+# Test setting max_requests alongside quota
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000, 'blocking');
+----
+true
+
+query IIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	0	10
+
+# Test resetting max_requests to unlimited
+query I
+SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', -1);
+----
+true
+
+query IIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	1000	blocking	0	-1
 
 # Cleanup
 query I

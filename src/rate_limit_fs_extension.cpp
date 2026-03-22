@@ -18,6 +18,7 @@ void LoadInternal(ExtensionLoader &loader) {
 	// Register rate limit configuration functions
 	loader.RegisterFunction(GetRateLimitFsQuotaFunction());
 	loader.RegisterFunction(GetRateLimitFsBurstFunction());
+	loader.RegisterFunction(GetRateLimitFsMaxRequestsFunction());
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
 

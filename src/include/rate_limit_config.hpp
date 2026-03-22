@@ -7,6 +7,7 @@
 #include "duckdb/storage/object_cache.hpp"
 
 #include "base_clock.hpp"
+#include "counting_semaphore.hpp"
 #include "file_system_operation.hpp"
 #include "mutex.hpp"
 #include "rate_limit_mode.hpp"
@@ -18,24 +19,24 @@ namespace duckdb {
 class ClientContext;
 class DatabaseInstance;
 
-// Configuration for a single operation's rate limiting.
 struct OperationConfig {
-	// Filesystem name this config belongs to (wrapped name for rate-limited filesystems).
 	string filesystem_name;
-	// Operation type
 	FileSystemOperation operation;
-	// Quota value (bandwidth in bytes per second)
 	idx_t quota;
-	// Behavior mode when rate limit is exceeded
 	RateLimitMode mode;
-	// Burst value (0 means no burst limiting)
 	idx_t burst;
-	// The rate limiter instance (created lazily)
 	SharedRateLimiter rate_limiter;
+	// -1 = unlimited (default), positive = max concurrent operations
+	int64_t max_requests;
+	shared_ptr<CountingSemaphore> semaphore;
 
 	OperationConfig()
 	    : filesystem_name(), operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE), burst(0),
-	      rate_limiter(nullptr) {
+	      rate_limiter(nullptr), max_requests(CountingSemaphore::UNLIMITED), semaphore(nullptr) {
+	}
+
+	bool IsEmpty() const {
+		return quota == 0 && burst == 0 && max_requests == CountingSemaphore::UNLIMITED;
 	}
 };
 
@@ -65,11 +66,15 @@ public:
 	// Sets the burst for an operation on a specific filesystem.
 	void SetBurst(const string &filesystem_name, FileSystemOperation operation, idx_t value);
 
-	// Gets the configuration for an operation on a specific filesystem. Returns nullptr if not configured.
+	// Sets the max requests for an operation on a specific filesystem.
+	void SetMaxRequests(const string &filesystem_name, FileSystemOperation operation, int64_t value);
+
 	const OperationConfig *GetConfig(const string &filesystem_name, FileSystemOperation operation) const;
 
-	// Gets or creates a rate limiter for an operation on a specific filesystem. Returns nullptr if not configured.
 	SharedRateLimiter GetOrCreateRateLimiter(const string &filesystem_name, FileSystemOperation operation);
+
+	// Returns nullptr if no limit set.
+	shared_ptr<CountingSemaphore> GetOrCreateSemaphore(const string &filesystem_name, FileSystemOperation operation);
 
 	// Returns all configured operations across all filesystems.
 	vector<OperationConfig> GetAllConfigs() const;

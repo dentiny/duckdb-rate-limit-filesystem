@@ -28,22 +28,18 @@ void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperatio
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
-			// No config exists and quota is 0, nothing to do
 			return;
 		}
-		// Create new config
 		OperationConfig config;
 		config.filesystem_name = filesystem_name;
 		config.operation = operation;
 		config.quota = value;
 		config.mode = mode;
-		config.burst = 0;
 		it = configs.emplace(key, config).first;
 	} else {
 		it->second.quota = value;
 		it->second.mode = mode;
-		// If both quota and burst are 0, remove the config
-		if (it->second.quota == 0 && it->second.burst == 0) {
+		if (it->second.IsEmpty()) {
 			configs.erase(it);
 			return;
 		}
@@ -53,7 +49,6 @@ void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperatio
 }
 
 void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperation operation, idx_t value) {
-	// Burst only makes sense for byte-based operations (READ/WRITE)
 	if (operation != FileSystemOperation::READ && operation != FileSystemOperation::WRITE) {
 		throw InvalidInputException("Burst limit can only be set for READ or WRITE operations, not '%s'",
 		                            FileSystemOperationToString(operation));
@@ -64,10 +59,8 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
-			// No config exists and burst is 0, nothing to do
 			return;
 		}
-		// Create new config with only burst
 		OperationConfig config;
 		config.filesystem_name = filesystem_name;
 		config.operation = operation;
@@ -77,14 +70,50 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 		it = configs.emplace(key, config).first;
 	} else {
 		it->second.burst = value;
-		// If both quota and burst are 0, remove the config
-		if (it->second.quota == 0 && it->second.burst == 0) {
+		if (it->second.IsEmpty()) {
 			configs.erase(it);
 			return;
 		}
 	}
 
 	UpdateRateLimiter(it->second);
+}
+
+void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOperation operation, int64_t value) {
+	if (value < CountingSemaphore::UNLIMITED) {
+		throw InvalidInputException("Max requests value must be -1 (unlimited) or a positive integer, got %lld", value);
+	}
+	if (value == 0) {
+		throw InvalidInputException("Max requests value cannot be 0 (would block all requests)");
+	}
+
+	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		if (value == CountingSemaphore::UNLIMITED) {
+			return;
+		}
+		OperationConfig config;
+		config.filesystem_name = filesystem_name;
+		config.operation = operation;
+		config.max_requests = value;
+		config.semaphore = make_shared_ptr<CountingSemaphore>(value);
+		it = configs.emplace(key, config).first;
+	} else {
+		it->second.max_requests = value;
+		if (it->second.IsEmpty()) {
+			configs.erase(it);
+			return;
+		}
+		if (value == CountingSemaphore::UNLIMITED) {
+			it->second.semaphore = nullptr;
+		} else if (it->second.semaphore) {
+			it->second.semaphore->SetMax(value);
+		} else {
+			it->second.semaphore = make_shared_ptr<CountingSemaphore>(value);
+		}
+	}
 }
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name, FileSystemOperation operation) const {
@@ -110,6 +139,25 @@ SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesyst
 		UpdateRateLimiter(it->second);
 	}
 	return it->second.rate_limiter;
+}
+
+shared_ptr<CountingSemaphore> RateLimitConfig::GetOrCreateSemaphore(const string &filesystem_name,
+                                                                    FileSystemOperation operation) {
+	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		return nullptr;
+	}
+
+	if (it->second.max_requests == CountingSemaphore::UNLIMITED) {
+		return nullptr;
+	}
+
+	if (!it->second.semaphore) {
+		it->second.semaphore = make_shared_ptr<CountingSemaphore>(it->second.max_requests);
+	}
+	return it->second.semaphore;
 }
 
 vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
@@ -201,7 +249,6 @@ void RateLimitConfig::UpdateRateLimiter(OperationConfig &config) {
 	// Config should have been removed from the map if both quota and burst are 0
 	D_ASSERT(config.quota > 0 || config.burst > 0);
 
-	// Create new rate limiter with current settings, using the configured clock
 	config.rate_limiter = CreateRateLimiter(config.quota, config.burst, clock);
 }
 

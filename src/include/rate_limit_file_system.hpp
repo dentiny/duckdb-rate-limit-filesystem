@@ -1,11 +1,11 @@
 #pragma once
 
+#include "counting_semaphore.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/optional_ptr.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/unique_ptr.hpp"
-
 #include "rate_limit_config.hpp"
 
 namespace duckdb {
@@ -105,11 +105,8 @@ protected:
 	bool SupportsListFilesExtended() const override;
 
 private:
-	// Applies rate limiting for the specified operation and byte count.
-	// If rate limiting is configured for this operation, waits or throws based on mode.
+	[[nodiscard]] SemaphoreGuard AcquireConcurrencySlot(FileSystemOperation operation);
 	void ApplyRateLimit(FileSystemOperation operation, idx_t bytes = 1);
-
-	// Extracts the inner file handle from a potentially wrapped handle.
 	FileHandle &GetInnerFileHandle(FileHandle &handle);
 
 	string filesystem_name;

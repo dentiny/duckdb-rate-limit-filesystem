@@ -39,6 +39,10 @@ TableFunction GetRateLimitFsConfigsFunction();
 // Columns: name VARCHAR
 TableFunction GetRateLimitFsListFilesystemsFunction();
 
+// rate_limit_fs_max_requests(filesystem_name, operation, value) -> BOOLEAN
+// value: -1 for unlimited (default), or a positive integer for the concurrency cap.
+ScalarFunction GetRateLimitFsMaxRequestsFunction();
+
 // Scalar function: rate_limit_fs_wrap(filesystem_name VARCHAR) -> BOOLEAN
 // Extracts the specified filesystem from the virtual filesystem registry,
 // wraps it with the rate limit filesystem, and registers the wrapped version.

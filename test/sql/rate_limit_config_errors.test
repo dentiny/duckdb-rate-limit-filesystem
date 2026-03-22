@@ -67,3 +67,27 @@ statement error
 SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'delete', 100);
 ----
 Burst limit can only be set for READ or WRITE operations
+
+# Test error: max_requests with value 0
+statement error
+SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 0);
+----
+Max requests value cannot be 0
+
+# Test error: max_requests with value < -1
+statement error
+SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', -2);
+----
+Max requests value must be -1 (unlimited) or a positive integer
+
+# Test error: max_requests on non-existent filesystem
+statement error
+SELECT rate_limit_fs_max_requests('NonExistentFS', 'read', 5);
+----
+not found
+
+# Test error: max_requests with invalid operation
+statement error
+SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'invalid_op', 5);
+----
+Invalid operation
