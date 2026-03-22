@@ -35,10 +35,10 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'r
 true
 
 # Verify quota was updated, burst unchanged
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	blocking	5000000	-1
 
 # Update mode for existing operation
 query I
@@ -47,10 +47,10 @@ SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'r
 true
 
 # Verify mode was updated
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	5000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	5000000	-1
 
 # Update burst value for existing operation
 query I
@@ -59,10 +59,10 @@ SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'r
 true
 
 # Verify burst was updated, quota and mode unchanged
-query IIIII
+query IIIIII
 SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read';
 ----
-RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	10000000
+RateLimitFileSystem - RateLimitFsFakeFileSystem	read	2000000	non_blocking	10000000	-1
 
 # Verify only one config exists (UPSERT, not duplicate INSERT)
 query I

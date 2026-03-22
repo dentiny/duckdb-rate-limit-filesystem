@@ -94,6 +94,14 @@ FileHandle &RateLimitFileSystem::GetInnerFileHandle(FileHandle &handle) {
 	return rate_limit_handle.GetInnerHandle();
 }
 
+SemaphoreGuard RateLimitFileSystem::AcquireConcurrencySlot(FileSystemOperation operation) {
+	auto semaphore = config->GetOrCreateSemaphore(filesystem_name, operation);
+	if (!semaphore) {
+		return SemaphoreGuard();
+	}
+	return semaphore->AcquireGuard();
+}
+
 // ==========================================================================
 // Rate limited operations
 // ==========================================================================
@@ -105,6 +113,7 @@ unique_ptr<FileHandle> RateLimitFileSystem::OpenFile(const string &path, FileOpe
 
 unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo &file, FileOpenFlags flags,
                                                              optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	auto inner_handle = inner_fs->OpenFile(file, flags, opener);
 	if (!inner_handle) {
@@ -114,60 +123,73 @@ unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo 
 }
 
 void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::READ);
 	auto &inner_handle = GetInnerFileHandle(handle);
-	// Truncate nr_bytes based on file size to rate limit only actual readable bytes
 	auto file_size = inner_fs->GetFileSize(inner_handle);
 	const idx_t actual_bytes = MinValue<idx_t>(static_cast<idx_t>(nr_bytes), static_cast<idx_t>(file_size) - location);
 	ApplyRateLimit(FileSystemOperation::READ, actual_bytes);
 	inner_fs->Read(inner_handle, buffer, nr_bytes, location);
 }
 
+// TODO: Consider how multipart upload interacts with concurrency limits.
+// A single Write at the filesystem level may fan out into multiple HTTP PUT requests
+// for large payloads, which means the actual TCP connection count could exceed the limit.
 void RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::WRITE);
 	ApplyRateLimit(FileSystemOperation::WRITE, static_cast<idx_t>(nr_bytes));
 	inner_fs->Write(GetInnerFileHandle(handle), buffer, nr_bytes, location);
 }
 
 int64_t RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::READ);
 	ApplyRateLimit(FileSystemOperation::READ, static_cast<idx_t>(nr_bytes));
 	return inner_fs->Read(GetInnerFileHandle(handle), buffer, nr_bytes);
 }
 
 int64_t RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::WRITE);
 	ApplyRateLimit(FileSystemOperation::WRITE, static_cast<idx_t>(nr_bytes));
 	return inner_fs->Write(GetInnerFileHandle(handle), buffer, nr_bytes);
 }
 
 FileMetadata RateLimitFileSystem::Stats(FileHandle &handle) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->Stats(GetInnerFileHandle(handle));
 }
 
 int64_t RateLimitFileSystem::GetFileSize(FileHandle &handle) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->GetFileSize(GetInnerFileHandle(handle));
 }
 
 timestamp_t RateLimitFileSystem::GetLastModifiedTime(FileHandle &handle) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->GetLastModifiedTime(GetInnerFileHandle(handle));
 }
 
 FileType RateLimitFileSystem::GetFileType(FileHandle &handle) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->GetFileType(GetInnerFileHandle(handle));
 }
 
 void RateLimitFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::WRITE);
 	ApplyRateLimit(FileSystemOperation::WRITE);
 	inner_fs->Truncate(GetInnerFileHandle(handle), new_size);
 }
 
 bool RateLimitFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->DirectoryExists(directory, opener);
 }
 
 void RateLimitFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::DELETE);
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	inner_fs->RemoveDirectory(directory, opener);
 }
@@ -177,27 +199,32 @@ void RateLimitFileSystem::MoveFile(const string &source, const string &target, o
 }
 
 bool RateLimitFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
 	ApplyRateLimit(FileSystemOperation::STAT);
 	return inner_fs->FileExists(filename, opener);
 }
 
 void RateLimitFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::DELETE);
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	inner_fs->RemoveFile(filename, opener);
 }
 
 bool RateLimitFileSystem::TryRemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::DELETE);
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	return inner_fs->TryRemoveFile(filename, opener);
 }
 
 vector<OpenFileInfo> RateLimitFileSystem::Glob(const string &path, FileOpener *opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::LIST);
 	ApplyRateLimit(FileSystemOperation::LIST);
 	return inner_fs->Glob(path, opener);
 }
 
 bool RateLimitFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
                                     FileOpener *opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::LIST);
 	ApplyRateLimit(FileSystemOperation::LIST);
 	return inner_fs->ListFiles(directory, callback, opener);
 }
@@ -205,6 +232,7 @@ bool RateLimitFileSystem::ListFiles(const string &directory, const std::function
 bool RateLimitFileSystem::ListFilesExtended(const string &directory,
                                             const std::function<void(OpenFileInfo &info)> &callback,
                                             optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::LIST);
 	ApplyRateLimit(FileSystemOperation::LIST);
 	return inner_fs->ListFiles(directory, callback, opener);
 }

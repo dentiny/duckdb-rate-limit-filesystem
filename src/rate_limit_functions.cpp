@@ -119,6 +119,26 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 }
 
 //===--------------------------------------------------------------------===//
+// rate_limit_fs_max_requests(filesystem_name, operation, value)
+//===--------------------------------------------------------------------===//
+
+void RateLimitFsMaxRequestsFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	D_ASSERT(args.size() == 1);
+	auto &context = state.GetContext();
+	auto config = RateLimitConfig::GetOrCreate(context);
+
+	auto fs_str = args.data[0].GetValue(0).ToString();
+	auto op_str = args.data[1].GetValue(0).ToString();
+	auto value = args.data[2].GetValue(0).GetValue<int64_t>();
+
+	ValidateFilesystemExists(context, fs_str);
+	auto op_enum = ParseFileSystemOperation(op_str);
+
+	config->SetMaxRequests(fs_str, op_enum, value);
+	result.SetValue(0, Value::BOOLEAN(true));
+}
+
+//===--------------------------------------------------------------------===//
 // rate_limit_fs_configs() - Table Function
 //===--------------------------------------------------------------------===//
 
@@ -135,8 +155,8 @@ unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunct
 	D_ASSERT(return_types.empty());
 	D_ASSERT(names.empty());
 
-	return_types.reserve(5);
-	names.reserve(5);
+	return_types.reserve(6);
+	names.reserve(6);
 
 	names.emplace_back("filesystem");
 	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
@@ -151,6 +171,9 @@ unique_ptr<FunctionData> RateLimitConfigsBind(ClientContext &context, TableFunct
 	return_types.emplace_back(LogicalType {LogicalTypeId::VARCHAR});
 
 	names.emplace_back("burst");
+	return_types.emplace_back(LogicalType {LogicalTypeId::BIGINT});
+
+	names.emplace_back("max_requests");
 	return_types.emplace_back(LogicalType {LogicalTypeId::BIGINT});
 
 	return nullptr;
@@ -177,6 +200,7 @@ void RateLimitConfigsFunction(ClientContext &context, TableFunctionInput &data, 
 		output.SetValue(2, count, Value::BIGINT(static_cast<int64_t>(config.quota)));
 		output.SetValue(3, count, Value(RateLimitModeToString(config.mode)));
 		output.SetValue(4, count, Value::BIGINT(static_cast<int64_t>(config.burst)));
+		output.SetValue(5, count, Value::BIGINT(config.max_requests));
 
 		state.current_idx++;
 		count++;
@@ -298,6 +322,14 @@ TableFunction GetRateLimitFsListFilesystemsFunction() {
 	TableFunction func("rate_limit_fs_list_filesystems", {}, ListFilesystemsFunction, ListFilesystemsBind,
 	                   ListFilesystemsInit);
 	return func;
+}
+
+ScalarFunction GetRateLimitFsMaxRequestsFunction() {
+	return ScalarFunction("rate_limit_fs_max_requests",
+	                      {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*operation=*/LogicalType {LogicalTypeId::VARCHAR},
+	                       /*value=*/LogicalType {LogicalTypeId::BIGINT}},
+	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsMaxRequestsFunction);
 }
 
 ScalarFunction GetRateLimitFsWrapFunction() {

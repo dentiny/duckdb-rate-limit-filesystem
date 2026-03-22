@@ -4,8 +4,15 @@ include_directories(${CMAKE_SOURCE_DIR}/src/include)
 include_directories(${DuckDB_SOURCE_DIR}/third_party)
 include_directories(${DuckDB_SOURCE_DIR}/test/include)
 
-file(GLOB_RECURSE RATE_LIMITER_UNITTEST_OBJECTS
-     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
+set(RATE_LIMITER_UNITTEST_OBJECTS
+    test_burst_limit.cpp
+    test_counting_semaphore.cpp
+    test_max_requests.cpp
+    test_no_destructor.cpp
+    test_rate_limit.cpp
+    test_rate_limit_file_system.cpp
+    test_rate_limit_file_system_mock.cpp
+    test_scoped_directory.cpp)
 
 add_executable(unittest_rate_limiter main.cpp ${RATE_LIMITER_UNITTEST_OBJECTS})
 
