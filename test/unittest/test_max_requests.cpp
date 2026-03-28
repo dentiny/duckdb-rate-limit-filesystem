@@ -28,6 +28,22 @@ string CreateTempFile(const string &dir, const string &filename, const string &c
 	return path;
 }
 
+class ConcurrencyTrackingFileSystem : public LocalFileSystem {
+public:
+	std::atomic<int64_t> concurrent_stat_count {0};
+	std::atomic<int64_t> max_observed_concurrency {0};
+
+	bool FileExists(const string &filename, optional_ptr<FileOpener> opener) override {
+		auto current = ++concurrent_stat_count;
+		auto prev_max = max_observed_concurrency.load();
+		while (current > prev_max && !max_observed_concurrency.compare_exchange_weak(prev_max, current)) {
+		}
+		auto result = LocalFileSystem::FileExists(filename, opener);
+		--concurrent_stat_count;
+		return result;
+	}
+};
+
 } // namespace
 
 TEST_CASE("MaxRequests - config stored and retrieved", "[max_requests]") {
@@ -72,21 +88,15 @@ TEST_CASE("MaxRequests - limit=1 serializes operations", "[max_requests]") {
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::STAT, 1);
 
-	auto inner_fs = make_uniq<LocalFileSystem>();
+	auto inner_fs = make_uniq<ConcurrencyTrackingFileSystem>();
+	auto &tracking = *inner_fs;
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
 
 	string temp_path = CreateTempFile(test_dir.GetPath(), "serial_test.txt", "Hello");
 
-	std::atomic<int64_t> concurrent_count {0};
-	std::atomic<bool> violation {false};
-
 	auto worker = [&] {
 		for (int i = 0; i < 5; i++) {
-			if (++concurrent_count > 1) {
-				violation.store(true);
-			}
 			[[maybe_unused]] auto exists = fs->FileExists(temp_path);
-			--concurrent_count;
 		}
 	};
 
@@ -97,5 +107,8 @@ TEST_CASE("MaxRequests - limit=1 serializes operations", "[max_requests]") {
 	for (auto &t : threads) {
 		t.join();
 	}
-	REQUIRE_FALSE(violation.load());
+
+	// The semaphore limits to 1, so at most 1 thread should be inside FileExists at a time.
+	REQUIRE(tracking.max_observed_concurrency.load() <= 1);
+	REQUIRE(tracking.concurrent_stat_count.load() == 0);
 }

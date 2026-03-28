@@ -45,24 +45,19 @@ RateLimitFileSystem::~RateLimitFileSystem() {
 }
 
 void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t bytes) {
-	auto rate_limiter = config->GetOrCreateRateLimiter(filesystem_name, operation);
-	if (!rate_limiter) {
+	auto snapshot = config->GetRateLimitSnapshot(filesystem_name, operation);
+	if (!snapshot.rate_limiter) {
 		return;
 	}
 
-	const auto *op_config = config->GetConfig(filesystem_name, operation);
-	if (!op_config) {
-		return;
-	}
-
-	if (op_config->mode == RateLimitMode::NONE) {
+	if (snapshot.mode == RateLimitMode::NONE) {
 		throw InternalException("Rate limit mode is NONE for operation '%s', which should not happen",
 		                        FileSystemOperationToString(operation));
 	}
 
 	// Non-blocking mode: check if we can acquire immediately, throw if not
-	if (op_config->mode == RateLimitMode::NON_BLOCKING) {
-		auto result = rate_limiter->TryAcquireImmediate(bytes);
+	if (snapshot.mode == RateLimitMode::NON_BLOCKING) {
+		auto result = snapshot.rate_limiter->TryAcquireImmediate(bytes);
 		// Allowed immediately
 		if (!result.has_value()) {
 			return;
@@ -81,8 +76,8 @@ void RateLimitFileSystem::ApplyRateLimit(FileSystemOperation operation, idx_t by
 	}
 
 	// Blocking mode: wait until ready
-	D_ASSERT(op_config->mode == RateLimitMode::BLOCKING);
-	auto wait_result = rate_limiter->UntilNReady(bytes);
+	D_ASSERT(snapshot.mode == RateLimitMode::BLOCKING);
+	auto wait_result = snapshot.rate_limiter->UntilNReady(bytes);
 	if (wait_result == RateLimitResult::InsufficientCapacity) {
 		throw IOException("Request size %llu exceeds burst capacity for operation '%s'", bytes,
 		                  FileSystemOperationToString(operation));
