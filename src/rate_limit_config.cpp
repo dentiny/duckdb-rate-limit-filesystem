@@ -7,11 +7,9 @@
 
 namespace duckdb {
 
-RateLimitConfig::RateLimitConfig() {
-}
+RateLimitConfig::RateLimitConfig() = default;
 
-RateLimitConfig::~RateLimitConfig() {
-}
+RateLimitConfig::~RateLimitConfig() = default;
 
 string RateLimitConfig::GetObjectType() {
 	return OBJECT_TYPE;
@@ -158,6 +156,35 @@ shared_ptr<CountingSemaphore> RateLimitConfig::GetOrCreateSemaphore(const string
 		it->second.semaphore = make_shared_ptr<CountingSemaphore>(it->second.max_requests);
 	}
 	return it->second.semaphore;
+}
+
+RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshot(const string &filesystem_name,
+                                                                         FileSystemOperation operation) {
+	RateLimitSnapshot snapshot;
+	ConfigKey key {filesystem_name, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		return snapshot;
+	}
+
+	auto &op_config = it->second;
+	snapshot.mode = op_config.mode;
+
+	// Ensure rate limiter exists if quota/burst are set.
+	if (op_config.quota > 0 || op_config.burst > 0) {
+		if (!op_config.rate_limiter) {
+			UpdateRateLimiter(op_config);
+		}
+		snapshot.rate_limiter = op_config.rate_limiter;
+	}
+
+	if (op_config.max_requests != CountingSemaphore::UNLIMITED) {
+		D_ASSERT(op_config.semaphore);
+		snapshot.semaphore = op_config.semaphore;
+	}
+
+	return snapshot;
 }
 
 vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {

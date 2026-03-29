@@ -76,6 +76,18 @@ public:
 	// Returns nullptr if no limit set.
 	shared_ptr<CountingSemaphore> GetOrCreateSemaphore(const string &filesystem_name, FileSystemOperation operation);
 
+	// Snapshot of rate limit info for a single operation, obtained under one lock acquisition.
+	// Avoids TOCTOU races and dangling-pointer issues from separate Get*/GetOrCreate* calls.
+	struct RateLimitSnapshot {
+		SharedRateLimiter rate_limiter;
+		shared_ptr<CountingSemaphore> semaphore;
+		RateLimitMode mode = RateLimitMode::NONE;
+	};
+
+	// Atomically retrieves all rate-limit state needed for a single operation.
+	// Returns a snapshot with rate_limiter==nullptr if no config exists for this filesystem/operation.
+	RateLimitSnapshot GetRateLimitSnapshot(const string &filesystem_name, FileSystemOperation operation);
+
 	// Returns all configured operations across all filesystems.
 	vector<OperationConfig> GetAllConfigs() const;
 
