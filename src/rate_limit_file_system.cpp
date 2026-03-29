@@ -1,6 +1,7 @@
 #include "rate_limit_file_system.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/multi_file/multi_file_list.hpp"
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/logging/logger.hpp"
@@ -214,7 +215,8 @@ bool RateLimitFileSystem::TryRemoveFile(const string &filename, optional_ptr<Fil
 vector<OpenFileInfo> RateLimitFileSystem::Glob(const string &path, FileOpener *opener) {
 	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::LIST);
 	ApplyRateLimit(FileSystemOperation::LIST);
-	return inner_fs->Glob(path, opener);
+	auto result = inner_fs->Glob(path, FileGlobOptions::ALLOW_EMPTY, opener);
+	return result->GetAllFiles();
 }
 
 bool RateLimitFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
