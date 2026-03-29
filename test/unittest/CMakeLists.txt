@@ -7,6 +7,7 @@ include_directories(${DuckDB_SOURCE_DIR}/test/include)
 set(RATE_LIMITER_UNITTEST_OBJECTS
     test_burst_limit.cpp
     test_counting_semaphore.cpp
+    test_filesystem_glob.cpp
     test_max_requests.cpp
     test_no_destructor.cpp
     test_rate_limit.cpp
