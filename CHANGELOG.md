@@ -1,3 +1,17 @@
+# 0.0.5
+
+## Improved
+
+- Improve concurrent access ([#31])
+
+[#31]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/31
+
+## Changed
+
+- Update DuckDB core and extension-ci-tools to v1.5.1 ([#30])
+
+[#30]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/30
+
 # 0.0.4
 
 ## Add
