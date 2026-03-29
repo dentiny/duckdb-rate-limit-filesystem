@@ -12,6 +12,12 @@
 
 [#30]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/30
 
+## Fixed
+
+- Fix glob implementation if extended version supported ([#32])
+
+[#32]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/32
+
 # 0.0.4
 
 ## Add
