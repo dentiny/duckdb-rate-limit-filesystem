@@ -179,11 +179,8 @@ RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshot(const s
 		snapshot.rate_limiter = op_config.rate_limiter;
 	}
 
-	// Ensure semaphore exists if max_requests is set.
 	if (op_config.max_requests != CountingSemaphore::UNLIMITED) {
-		if (!op_config.semaphore) {
-			op_config.semaphore = make_shared_ptr<CountingSemaphore>(op_config.max_requests);
-		}
+		D_ASSERT(op_config.semaphore);
 		snapshot.semaphore = op_config.semaphore;
 	}
 
