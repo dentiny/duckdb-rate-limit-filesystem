@@ -290,6 +290,10 @@ void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<
 	inner_fs->CreateDirectory(directory, opener);
 }
 
+void RateLimitFileSystem::CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener) {
+	inner_fs->CreateDirectoriesRecursive(path, opener);
+}
+
 bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {
 	return inner_fs->OnDiskFile(GetInnerFileHandle(handle));
 }
