@@ -56,6 +56,7 @@ public:
 	int64_t GetFileSize(FileHandle &handle) override;
 	timestamp_t GetLastModifiedTime(FileHandle &handle) override;
 	FileType GetFileType(FileHandle &handle) override;
+	string GetVersionTag(FileHandle &handle) override;
 
 	void Truncate(FileHandle &handle, int64_t new_size) override;
 
@@ -65,6 +66,7 @@ public:
 	bool FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	bool TryRemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
+	void RemoveFiles(const vector<string> &filenames, optional_ptr<FileOpener> opener = nullptr) override;
 
 	vector<OpenFileInfo> Glob(const string &path, FileOpener *opener = nullptr) override;
 	bool ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
@@ -80,6 +82,7 @@ public:
 	                                optional_ptr<FileOpener> opener = nullptr) override;
 
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
+	void CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener = nullptr) override;
 	bool IsPipe(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void MoveFile(const string &source, const string &target, optional_ptr<FileOpener> opener = nullptr) override;
 
