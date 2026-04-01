@@ -172,6 +172,12 @@ FileType RateLimitFileSystem::GetFileType(FileHandle &handle) {
 	return inner_fs->GetFileType(GetInnerFileHandle(handle));
 }
 
+string RateLimitFileSystem::GetVersionTag(FileHandle &handle) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::STAT);
+	ApplyRateLimit(FileSystemOperation::STAT);
+	return inner_fs->GetVersionTag(GetInnerFileHandle(handle));
+}
+
 void RateLimitFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::WRITE);
 	ApplyRateLimit(FileSystemOperation::WRITE);
@@ -210,6 +216,12 @@ bool RateLimitFileSystem::TryRemoveFile(const string &filename, optional_ptr<Fil
 	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::DELETE);
 	ApplyRateLimit(FileSystemOperation::DELETE);
 	return inner_fs->TryRemoveFile(filename, opener);
+}
+
+void RateLimitFileSystem::RemoveFiles(const vector<string> &filenames, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::DELETE);
+	ApplyRateLimit(FileSystemOperation::DELETE);
+	inner_fs->RemoveFiles(filenames, opener);
 }
 
 vector<OpenFileInfo> RateLimitFileSystem::Glob(const string &path, FileOpener *opener) {
@@ -276,6 +288,10 @@ bool RateLimitFileSystem::CanSeek() {
 
 void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	inner_fs->CreateDirectory(directory, opener);
+}
+
+void RateLimitFileSystem::CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener) {
+	inner_fs->CreateDirectoriesRecursive(path, opener);
 }
 
 bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {
