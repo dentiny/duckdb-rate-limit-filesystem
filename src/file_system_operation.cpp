@@ -8,7 +8,7 @@ namespace duckdb {
 namespace {
 
 string GetValidOperationsString() {
-	return "stat, read, write, list, delete";
+	return "stat, read, write, list, delete, mkdir";
 }
 
 } // namespace
@@ -31,6 +31,9 @@ FileSystemOperation ParseFileSystemOperation(const string &op_str) {
 	if (lower == "delete") {
 		return FileSystemOperation::DELETE;
 	}
+	if (lower == "mkdir") {
+		return FileSystemOperation::MKDIR;
+	}
 
 	throw InvalidInputException("Invalid operation '%s'. Valid operations are: %s", op_str, GetValidOperationsString());
 }
@@ -49,6 +52,8 @@ string FileSystemOperationToString(FileSystemOperation op) {
 		return "list";
 	case FileSystemOperation::DELETE:
 		return "delete";
+	case FileSystemOperation::MKDIR:
+		return "mkdir";
 	default:
 		throw InternalException("Unknown FileSystemOperation value");
 	}

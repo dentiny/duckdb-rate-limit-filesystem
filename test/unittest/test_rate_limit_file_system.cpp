@@ -186,6 +186,34 @@ TEST_CASE("RateLimitFileSystem - list operations non-blocking mode", "[rate_limi
 	REQUIRE_THROWS_AS(fs.Glob(test_dir.GetPath() + "/*.txt"), IOException);
 }
 
+TEST_CASE("RateLimitFileSystem - mkdir operations non-blocking mode", "[rate_limit_fs]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto config = make_shared_ptr<RateLimitConfig>();
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	fs.CreateDirectory(test_dir.GetPath() + "/rl_mkdir_1");
+	fs.CreateDirectory(test_dir.GetPath() + "/rl_mkdir_2");
+	REQUIRE_THROWS_AS(fs.CreateDirectory(test_dir.GetPath() + "/rl_mkdir_3"), IOException);
+}
+
+TEST_CASE("RateLimitFileSystem - mkdir recursive non-blocking mode", "[rate_limit_fs]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto config = make_shared_ptr<RateLimitConfig>();
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/rl_rec_1/a/b");
+	fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/rl_rec_2/c/d");
+	REQUIRE_THROWS_AS(fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/rl_rec_3/e/f"), IOException);
+}
+
 TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_fs]") {
 	ScopedDirectory test_dir(TEST_DIR);
 

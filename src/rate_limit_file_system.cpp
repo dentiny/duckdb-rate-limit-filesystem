@@ -246,6 +246,18 @@ bool RateLimitFileSystem::ListFilesExtended(const string &directory,
 	return inner_fs->ListFiles(directory, callback, opener);
 }
 
+void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::MKDIR);
+	ApplyRateLimit(FileSystemOperation::MKDIR);
+	inner_fs->CreateDirectory(directory, opener);
+}
+
+void RateLimitFileSystem::CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener) {
+	auto concurrency_guard = AcquireConcurrencySlot(FileSystemOperation::MKDIR);
+	ApplyRateLimit(FileSystemOperation::MKDIR);
+	inner_fs->CreateDirectoriesRecursive(path, opener);
+}
+
 // ==========================================================================
 // Delegate to inner file system (no rate limiting)
 // ==========================================================================
@@ -284,14 +296,6 @@ bool RateLimitFileSystem::IsPipe(const string &filename, optional_ptr<FileOpener
 
 bool RateLimitFileSystem::CanSeek() {
 	return inner_fs->CanSeek();
-}
-
-void RateLimitFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
-	inner_fs->CreateDirectory(directory, opener);
-}
-
-void RateLimitFileSystem::CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener) {
-	inner_fs->CreateDirectoriesRecursive(path, opener);
 }
 
 bool RateLimitFileSystem::OnDiskFile(FileHandle &handle) {

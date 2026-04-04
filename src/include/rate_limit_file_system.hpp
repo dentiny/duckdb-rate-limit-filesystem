@@ -72,6 +72,9 @@ public:
 	bool ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
 	               FileOpener *opener = nullptr) override;
 
+	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
+	void CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener = nullptr) override;
+
 	// ==========================================================================
 	// Delegate to inner file system (no rate limiting)
 	// ==========================================================================
@@ -81,8 +84,6 @@ public:
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
 
-	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
-	void CreateDirectoriesRecursive(const string &path, optional_ptr<FileOpener> opener = nullptr) override;
 	bool IsPipe(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void MoveFile(const string &source, const string &target, optional_ptr<FileOpener> opener = nullptr) override;
 

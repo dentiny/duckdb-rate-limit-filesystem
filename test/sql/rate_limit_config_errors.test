@@ -68,6 +68,11 @@ SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'd
 ----
 Burst limit can only be set for READ or WRITE operations
 
+statement error
+SELECT rate_limit_fs_burst('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'mkdir', 100);
+----
+Burst limit can only be set for READ or WRITE operations
+
 # Test error: max_requests with value 0
 statement error
 SELECT rate_limit_fs_max_requests('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 0);
