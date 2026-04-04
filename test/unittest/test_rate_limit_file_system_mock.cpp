@@ -200,6 +200,45 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	REQUIRE_THROWS_AS(fs.FileExists(temp_path), IOException);
 }
 
+TEST_CASE("RateLimitFileSystem - MockClock: mkdir operations with mock clock", "[rate_limit_fs][mock_clock]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto mock_clock = CreateMockClock();
+	auto config = make_shared_ptr<RateLimitConfig>();
+	config->SetClock(mock_clock);
+
+	// 2 mkdir ops/sec — same token-bucket behavior as STAT/LIST for count-based ops
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	fs.CreateDirectory(test_dir.GetPath() + "/mock_mkdir_1");
+	fs.CreateDirectory(test_dir.GetPath() + "/mock_mkdir_2");
+	REQUIRE_THROWS_AS(fs.CreateDirectory(test_dir.GetPath() + "/mock_mkdir_3"), IOException);
+
+	mock_clock->Advance(500ms);
+	fs.CreateDirectory(test_dir.GetPath() + "/mock_mkdir_4");
+	REQUIRE_THROWS_AS(fs.CreateDirectory(test_dir.GetPath() + "/mock_mkdir_5"), IOException);
+}
+
+TEST_CASE("RateLimitFileSystem - MockClock: mkdir recursive shares mkdir rate limit", "[rate_limit_fs][mock_clock]") {
+	ScopedDirectory test_dir(TEST_DIR);
+
+	auto mock_clock = CreateMockClock();
+	auto config = make_shared_ptr<RateLimitConfig>();
+	config->SetClock(mock_clock);
+
+	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
+
+	auto inner_fs = make_uniq<LocalFileSystem>();
+	RateLimitFileSystem fs(std::move(inner_fs), config);
+
+	fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/mock_rec/a/b");
+	fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/mock_rec2/x/y");
+	REQUIRE_THROWS_AS(fs.CreateDirectoriesRecursive(test_dir.GetPath() + "/mock_rec3/p/q"), IOException);
+}
+
 // ==========================================================================
 // Concurrent access tests
 // ==========================================================================

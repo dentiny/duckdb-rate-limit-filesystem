@@ -13,12 +13,14 @@ enum class FileSystemOperation : uint8_t {
 	STAT,
 	// Reading data from files
 	READ,
-	// Writing data to files (including Truncate, CreateDirectory, MoveFile)
+	// Writing data to files (including Truncate, MoveFile)
 	WRITE,
 	// Listing directory contents (Glob, ListFiles)
 	LIST,
 	// Deleting files or directories
-	DELETE
+	DELETE,
+	// Creating directories
+	MKDIR
 };
 
 // Converts a string to FileSystemOperation. Throws InvalidInputException on invalid input.
