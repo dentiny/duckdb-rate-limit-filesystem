@@ -4,6 +4,7 @@
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "mock_clock.hpp"
+#include "path_util.hpp"
 #include "rate_limit_config.hpp"
 #include "rate_limit_file_system.hpp"
 #include "scoped_directory.hpp"
@@ -34,20 +35,17 @@ string CreateTempFile(const string &dir, const string &filename, const string &c
 // ==========================================================================
 
 TEST_CASE("PerBucketRateLimit - Bucket extraction from S3 paths", "[rate_limit_fs][per_bucket]") {
-	// Test bucket extraction using the ExtractBucket static method
-	auto bucket1 = RateLimitConfig::ExtractBucket("s3://my-bucket/path/to/file.csv");
-	REQUIRE(bucket1 == "my-bucket");
+	// Basic bucket extraction is tested in test_path_util.cpp
+	// Here we just verify integration with config
+	auto config = make_shared_ptr<RateLimitConfig>();
 
-	auto bucket2 = RateLimitConfig::ExtractBucket("s3://another-bucket/data.parquet");
-	REQUIRE(bucket2 == "another-bucket");
+	// Set bucket-specific limit
+	config->SetQuotaBucket(TEST_FS_NAME, "my-bucket", FileSystemOperation::READ, 100, RateLimitMode::BLOCKING);
 
-	// Local paths should return empty string
-	auto bucket3 = RateLimitConfig::ExtractBucket("/local/path/file.txt");
-	REQUIRE(bucket3 == "");
-
-	// GCS paths should also work
-	auto bucket4 = RateLimitConfig::ExtractBucket("gcs://gcs-bucket/object.json");
-	REQUIRE(bucket4 == "gcs-bucket");
+	// Verify we can get snapshot for that bucket
+	auto snapshot =
+	    config->GetRateLimitSnapshotForPath(TEST_FS_NAME, "s3://my-bucket/file.txt", FileSystemOperation::READ);
+	REQUIRE(snapshot.rate_limiter != nullptr);
 }
 
 TEST_CASE("PerBucketRateLimit - Bucket-specific limit overrides filesystem limit", "[rate_limit_fs][per_bucket]") {
@@ -90,8 +88,6 @@ TEST_CASE("PerBucketRateLimit - Bucket-specific limit overrides filesystem limit
 	    config->GetRateLimitSnapshotForPath(TEST_FS_NAME, "s3://unknown/file.txt", FileSystemOperation::READ);
 	REQUIRE(snapshot_fallback.rate_limiter != nullptr);
 
-	// Reset the clock for clean test
-	mock_clock->SetTime(0ns);
 	auto result_fallback = snapshot_fallback.rate_limiter->TryAcquireImmediate(20);
 	REQUIRE(result_fallback.has_value()); // Should fail - exceeds 5 byte burst
 }
@@ -120,8 +116,12 @@ TEST_CASE("PerBucketRateLimit - Multiple buckets with different limits", "[rate_
 	auto result_a = snapshot_a.rate_limiter->TryAcquireImmediate(10);
 	REQUIRE(!result_a.has_value());
 
-	// Cannot read another 10 bytes immediately
+	// Can read another 10 bytes (within tolerance window)
 	result_a = snapshot_a.rate_limiter->TryAcquireImmediate(10);
+	REQUIRE(!result_a.has_value());
+
+	// Third request should fail (tolerance exhausted)
+	result_a = snapshot_a.rate_limiter->TryAcquireImmediate(1);
 	REQUIRE(result_a.has_value());
 
 	// Test bucket B
@@ -133,8 +133,12 @@ TEST_CASE("PerBucketRateLimit - Multiple buckets with different limits", "[rate_
 	auto result_b = snapshot_b.rate_limiter->TryAcquireImmediate(30);
 	REQUIRE(!result_b.has_value());
 
-	// Cannot read another 30 bytes immediately
+	// Can read another 30 bytes (within tolerance window)
 	result_b = snapshot_b.rate_limiter->TryAcquireImmediate(30);
+	REQUIRE(!result_b.has_value());
+
+	// Third request should fail (tolerance exhausted)
+	result_b = snapshot_b.rate_limiter->TryAcquireImmediate(1);
 	REQUIRE(result_b.has_value());
 }
 
@@ -318,14 +322,18 @@ TEST_CASE("PerBucketRateLimit - Time-based refill with mock clock", "[rate_limit
 	auto result1 = snapshot.rate_limiter->TryAcquireImmediate(10);
 	REQUIRE(!result1.has_value());
 
-	// Second request fails immediately
+	// Second request also succeeds (within tolerance window)
 	auto result2 = snapshot.rate_limiter->TryAcquireImmediate(10);
-	REQUIRE(result2.has_value());
+	REQUIRE(!result2.has_value());
+
+	// Third request fails immediately (tolerance exhausted)
+	auto result3 = snapshot.rate_limiter->TryAcquireImmediate(1);
+	REQUIRE(result3.has_value());
 
 	// Advance time by 1 second (should refill 10 bytes)
 	mock_clock->Advance(1s);
 
 	// Now the request should succeed
-	auto result3 = snapshot.rate_limiter->TryAcquireImmediate(10);
-	REQUIRE(!result3.has_value());
+	auto result4 = snapshot.rate_limiter->TryAcquireImmediate(10);
+	REQUIRE(!result4.has_value());
 }

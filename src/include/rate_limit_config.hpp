@@ -102,8 +102,7 @@ public:
 	// Returns a snapshot with rate_limiter==nullptr if no config exists for this filesystem/operation.
 	RateLimitSnapshot GetRateLimitSnapshot(const string &filesystem_name, FileSystemOperation operation);
 
-	// Atomically retrieves rate-limit state for a specific path (with bucket extraction).
-	// Tries bucket-specific config first, then falls back to filesystem-level config.
+	// Atomically retrieves rate-limit state for a specific path.
 	RateLimitSnapshot GetRateLimitSnapshotForPath(const string &filesystem_name, const string &path,
 	                                              FileSystemOperation operation);
 
@@ -161,10 +160,6 @@ private:
 			return h1 ^ (h2 << 1) ^ (h3 << 2);
 		}
 	};
-
-	// Extracts bucket name from path using DuckDB's Path parser.
-	// Returns empty string if no bucket authority is present (e.g., local paths).
-	static string ExtractBucket(const string &path);
 
 	// Updates the rate limiter for an operation based on current config.
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);

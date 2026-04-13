@@ -29,14 +29,8 @@ public:
 	// Returns the inner file handle.
 	FileHandle &GetInnerHandle();
 
-	// Returns the file path for bucket extraction.
-	const string &GetPath() const {
-		return file_path;
-	}
-
 private:
 	unique_ptr<FileHandle> inner_handle;
-	string file_path;
 };
 
 // A file system wrapper that applies rate limiting to operations.

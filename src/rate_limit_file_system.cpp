@@ -14,7 +14,7 @@ namespace duckdb {
 
 RateLimitFileHandle::RateLimitFileHandle(RateLimitFileSystem &fs, unique_ptr<FileHandle> inner_handle_p,
                                          const string &path, FileOpenFlags flags)
-    : FileHandle(fs, path, flags), inner_handle(std::move(inner_handle_p)), file_path(path) {
+    : FileHandle(fs, path, flags), inner_handle(std::move(inner_handle_p)) {
 }
 
 RateLimitFileHandle::~RateLimitFileHandle() {
@@ -167,8 +167,7 @@ unique_ptr<FileHandle> RateLimitFileSystem::OpenFileExtended(const OpenFileInfo 
 }
 
 void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::READ);
 	auto &inner_handle = GetInnerFileHandle(handle);
 	auto file_size = inner_fs->GetFileSize(inner_handle);
@@ -181,72 +180,63 @@ void RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 // A single Write at the filesystem level may fan out into multiple HTTP PUT requests
 // for large payloads, which means the actual TCP connection count could exceed the limit.
 void RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::WRITE);
 	ApplyRateLimitForPath(path, FileSystemOperation::WRITE, static_cast<idx_t>(nr_bytes));
 	inner_fs->Write(GetInnerFileHandle(handle), buffer, nr_bytes, location);
 }
 
 int64_t RateLimitFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::READ);
 	ApplyRateLimitForPath(path, FileSystemOperation::READ, static_cast<idx_t>(nr_bytes));
 	return inner_fs->Read(GetInnerFileHandle(handle), buffer, nr_bytes);
 }
 
 int64_t RateLimitFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::WRITE);
 	ApplyRateLimitForPath(path, FileSystemOperation::WRITE, static_cast<idx_t>(nr_bytes));
 	return inner_fs->Write(GetInnerFileHandle(handle), buffer, nr_bytes);
 }
 
 FileMetadata RateLimitFileSystem::Stats(FileHandle &handle) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::STAT);
 	ApplyRateLimitForPath(path, FileSystemOperation::STAT);
 	return inner_fs->Stats(GetInnerFileHandle(handle));
 }
 
 int64_t RateLimitFileSystem::GetFileSize(FileHandle &handle) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::STAT);
 	ApplyRateLimitForPath(path, FileSystemOperation::STAT);
 	return inner_fs->GetFileSize(GetInnerFileHandle(handle));
 }
 
 timestamp_t RateLimitFileSystem::GetLastModifiedTime(FileHandle &handle) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::STAT);
 	ApplyRateLimitForPath(path, FileSystemOperation::STAT);
 	return inner_fs->GetLastModifiedTime(GetInnerFileHandle(handle));
 }
 
 FileType RateLimitFileSystem::GetFileType(FileHandle &handle) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::STAT);
 	ApplyRateLimitForPath(path, FileSystemOperation::STAT);
 	return inner_fs->GetFileType(GetInnerFileHandle(handle));
 }
 
 string RateLimitFileSystem::GetVersionTag(FileHandle &handle) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::STAT);
 	ApplyRateLimitForPath(path, FileSystemOperation::STAT);
 	return inner_fs->GetVersionTag(GetInnerFileHandle(handle));
 }
 
 void RateLimitFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
-	auto &rate_limit_handle = handle.Cast<RateLimitFileHandle>();
-	const string &path = rate_limit_handle.GetPath();
+	const string &path = handle.path;
 	auto concurrency_guard = AcquireConcurrencySlotForPath(path, FileSystemOperation::WRITE);
 	ApplyRateLimitForPath(path, FileSystemOperation::WRITE);
 	inner_fs->Truncate(GetInnerFileHandle(handle), new_size);
