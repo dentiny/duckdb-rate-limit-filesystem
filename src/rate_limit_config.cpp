@@ -1,6 +1,7 @@
 #include "rate_limit_config.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/path.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/database.hpp"
@@ -21,7 +22,7 @@ string RateLimitConfig::ObjectType() {
 
 void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperation operation, idx_t value,
                                RateLimitMode mode) {
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -30,6 +31,7 @@ void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperatio
 		}
 		OperationConfig config;
 		config.filesystem_name = filesystem_name;
+		config.bucket = "";
 		config.operation = operation;
 		config.quota = value;
 		config.mode = mode;
@@ -52,7 +54,7 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 		                            FileSystemOperationToString(operation));
 	}
 
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -61,6 +63,7 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 		}
 		OperationConfig config;
 		config.filesystem_name = filesystem_name;
+		config.bucket = "";
 		config.operation = operation;
 		config.quota = 0;
 		config.mode = RateLimitMode::BLOCKING;
@@ -85,7 +88,7 @@ void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOp
 		throw InvalidInputException("Max requests value cannot be 0 (would block all requests)");
 	}
 
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -94,6 +97,7 @@ void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOp
 		}
 		OperationConfig config;
 		config.filesystem_name = filesystem_name;
+		config.bucket = "";
 		config.operation = operation;
 		config.max_requests = value;
 		config.semaphore = make_shared_ptr<CountingSemaphore>(value);
@@ -115,7 +119,7 @@ void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOp
 }
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name, FileSystemOperation operation) const {
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -126,7 +130,7 @@ const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name,
 
 SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesystem_name,
                                                           FileSystemOperation operation) {
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -141,7 +145,7 @@ SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesyst
 
 shared_ptr<CountingSemaphore> RateLimitConfig::GetOrCreateSemaphore(const string &filesystem_name,
                                                                     FileSystemOperation operation) {
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -161,7 +165,7 @@ shared_ptr<CountingSemaphore> RateLimitConfig::GetOrCreateSemaphore(const string
 RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshot(const string &filesystem_name,
                                                                          FileSystemOperation operation) {
 	RateLimitSnapshot snapshot;
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
@@ -211,9 +215,194 @@ vector<OperationConfig> RateLimitConfig::GetConfigsForFilesystem(const string &f
 }
 
 void RateLimitConfig::ClearConfig(const string &filesystem_name, FileSystemOperation operation) {
-	ConfigKey key {filesystem_name, operation};
+	ConfigKey key {filesystem_name, "", operation};
 	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	configs.erase(key);
+}
+
+void RateLimitConfig::SetQuotaBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation,
+                                     idx_t value, RateLimitMode mode) {
+	ConfigKey key {filesystem_name, bucket, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		if (value == 0) {
+			return;
+		}
+		OperationConfig config;
+		config.filesystem_name = filesystem_name;
+		config.bucket = bucket;
+		config.operation = operation;
+		config.quota = value;
+		config.mode = mode;
+		it = configs.emplace(key, config).first;
+	} else {
+		it->second.quota = value;
+		it->second.mode = mode;
+		if (it->second.IsEmpty()) {
+			configs.erase(it);
+			return;
+		}
+	}
+
+	UpdateRateLimiter(it->second);
+}
+
+void RateLimitConfig::SetBurstBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation,
+                                     idx_t value) {
+	if (operation != FileSystemOperation::READ && operation != FileSystemOperation::WRITE) {
+		throw InvalidInputException("Burst limit can only be set for READ or WRITE operations, not '%s'",
+		                            FileSystemOperationToString(operation));
+	}
+
+	ConfigKey key {filesystem_name, bucket, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		if (value == 0) {
+			return;
+		}
+		OperationConfig config;
+		config.filesystem_name = filesystem_name;
+		config.bucket = bucket;
+		config.operation = operation;
+		config.quota = 0;
+		config.mode = RateLimitMode::BLOCKING;
+		config.burst = value;
+		it = configs.emplace(key, config).first;
+	} else {
+		it->second.burst = value;
+		if (it->second.IsEmpty()) {
+			configs.erase(it);
+			return;
+		}
+	}
+
+	UpdateRateLimiter(it->second);
+}
+
+void RateLimitConfig::SetMaxRequestsBucket(const string &filesystem_name, const string &bucket,
+                                           FileSystemOperation operation, int64_t value) {
+	if (value < CountingSemaphore::UNLIMITED) {
+		throw InvalidInputException("Max requests value must be -1 (unlimited) or a positive integer, got %lld", value);
+	}
+	if (value == 0) {
+		throw InvalidInputException("Max requests value cannot be 0 (would block all requests)");
+	}
+
+	ConfigKey key {filesystem_name, bucket, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	auto it = configs.find(key);
+	if (it == configs.end()) {
+		if (value == CountingSemaphore::UNLIMITED) {
+			return;
+		}
+		OperationConfig config;
+		config.filesystem_name = filesystem_name;
+		config.bucket = bucket;
+		config.operation = operation;
+		config.max_requests = value;
+		config.semaphore = make_shared_ptr<CountingSemaphore>(value);
+		it = configs.emplace(key, config).first;
+	} else {
+		it->second.max_requests = value;
+		if (it->second.IsEmpty()) {
+			configs.erase(it);
+			return;
+		}
+		if (value == CountingSemaphore::UNLIMITED) {
+			it->second.semaphore = nullptr;
+		} else if (it->second.semaphore) {
+			it->second.semaphore->SetMax(value);
+		} else {
+			it->second.semaphore = make_shared_ptr<CountingSemaphore>(value);
+		}
+	}
+}
+
+void RateLimitConfig::ClearConfigBucket(const string &filesystem_name, const string &bucket,
+                                        FileSystemOperation operation) {
+	ConfigKey key {filesystem_name, bucket, operation};
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	configs.erase(key);
+}
+
+void RateLimitConfig::ClearFilesystemBucket(const string &filesystem_name, const string &bucket) {
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	for (auto it = configs.begin(); it != configs.end();) {
+		if (it->first.filesystem_name == filesystem_name && it->first.bucket == bucket) {
+			it = configs.erase(it);
+		} else {
+			++it;
+		}
+	}
+}
+
+string RateLimitConfig::ExtractBucket(const string &path) {
+	try {
+		auto parsed_path = Path::FromString(path);
+		return parsed_path.GetAuthority();
+	} catch (...) {
+		return "";
+	}
+}
+
+RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshotForPath(const string &filesystem_name,
+                                                                                const string &path,
+                                                                                FileSystemOperation operation) {
+	string bucket = ExtractBucket(path);
+
+	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+
+	// Try bucket-specific config first (if bucket is not empty)
+	if (!bucket.empty()) {
+		ConfigKey bucket_key {filesystem_name, bucket, operation};
+		auto it = configs.find(bucket_key);
+		if (it != configs.end()) {
+			RateLimitSnapshot snapshot;
+			auto &op_config = it->second;
+			snapshot.mode = op_config.mode;
+
+			if (op_config.quota > 0 || op_config.burst > 0) {
+				if (!op_config.rate_limiter) {
+					UpdateRateLimiter(op_config);
+				}
+				snapshot.rate_limiter = op_config.rate_limiter;
+			}
+
+			if (op_config.max_requests != CountingSemaphore::UNLIMITED) {
+				D_ASSERT(op_config.semaphore);
+				snapshot.semaphore = op_config.semaphore;
+			}
+
+			return snapshot;
+		}
+	}
+
+	// Fallback to filesystem-level config
+	ConfigKey fs_key {filesystem_name, "", operation};
+	auto it = configs.find(fs_key);
+	if (it == configs.end()) {
+		return RateLimitSnapshot();
+	}
+
+	RateLimitSnapshot snapshot;
+	auto &op_config = it->second;
+	snapshot.mode = op_config.mode;
+
+	if (op_config.quota > 0 || op_config.burst > 0) {
+		if (!op_config.rate_limiter) {
+			UpdateRateLimiter(op_config);
+		}
+		snapshot.rate_limiter = op_config.rate_limiter;
+	}
+
+	if (op_config.max_requests != CountingSemaphore::UNLIMITED) {
+		D_ASSERT(op_config.semaphore);
+		snapshot.semaphore = op_config.semaphore;
+	}
+
+	return snapshot;
 }
 
 void RateLimitConfig::ClearFilesystem(const string &filesystem_name) {

@@ -29,8 +29,14 @@ public:
 	// Returns the inner file handle.
 	FileHandle &GetInnerHandle();
 
+	// Returns the file path for bucket extraction.
+	const string &GetPath() const {
+		return file_path;
+	}
+
 private:
 	unique_ptr<FileHandle> inner_handle;
+	string file_path;
 };
 
 // A file system wrapper that applies rate limiting to operations.
@@ -110,7 +116,9 @@ protected:
 
 private:
 	[[nodiscard]] SemaphoreGuard AcquireConcurrencySlot(FileSystemOperation operation);
+	[[nodiscard]] SemaphoreGuard AcquireConcurrencySlotForPath(const string &path, FileSystemOperation operation);
 	void ApplyRateLimit(FileSystemOperation operation, idx_t bytes = 1);
+	void ApplyRateLimitForPath(const string &path, FileSystemOperation operation, idx_t bytes = 1);
 	FileHandle &GetInnerFileHandle(FileHandle &handle);
 
 	string filesystem_name;

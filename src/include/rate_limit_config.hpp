@@ -1,5 +1,6 @@
 #pragma once
 
+#include "duckdb/common/optional_idx.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/types.hpp"
@@ -21,6 +22,7 @@ class DatabaseInstance;
 
 struct OperationConfig {
 	string filesystem_name;
+	string bucket;
 	FileSystemOperation operation;
 	idx_t quota;
 	RateLimitMode mode;
@@ -31,8 +33,8 @@ struct OperationConfig {
 	shared_ptr<CountingSemaphore> semaphore;
 
 	OperationConfig()
-	    : filesystem_name(), operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE), burst(0),
-	      rate_limiter(nullptr), max_requests(CountingSemaphore::UNLIMITED), semaphore(nullptr) {
+	    : filesystem_name(), bucket(), operation(FileSystemOperation::NONE), quota(0), mode(RateLimitMode::NONE),
+	      burst(0), rate_limiter(nullptr), max_requests(CountingSemaphore::UNLIMITED), semaphore(nullptr) {
 	}
 
 	bool IsEmpty() const {
@@ -69,6 +71,18 @@ public:
 	// Sets the max requests for an operation on a specific filesystem.
 	void SetMaxRequests(const string &filesystem_name, FileSystemOperation operation, int64_t value);
 
+	// Sets the quota for an operation on a specific filesystem and bucket.
+	void SetQuotaBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation, idx_t value,
+	                    RateLimitMode mode);
+
+	// Sets the burst for an operation on a specific filesystem and bucket.
+	void SetBurstBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation,
+	                    idx_t value);
+
+	// Sets the max requests for an operation on a specific filesystem and bucket.
+	void SetMaxRequestsBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation,
+	                          int64_t value);
+
 	const OperationConfig *GetConfig(const string &filesystem_name, FileSystemOperation operation) const;
 
 	SharedRateLimiter GetOrCreateRateLimiter(const string &filesystem_name, FileSystemOperation operation);
@@ -88,6 +102,11 @@ public:
 	// Returns a snapshot with rate_limiter==nullptr if no config exists for this filesystem/operation.
 	RateLimitSnapshot GetRateLimitSnapshot(const string &filesystem_name, FileSystemOperation operation);
 
+	// Atomically retrieves rate-limit state for a specific path (with bucket extraction).
+	// Tries bucket-specific config first, then falls back to filesystem-level config.
+	RateLimitSnapshot GetRateLimitSnapshotForPath(const string &filesystem_name, const string &path,
+	                                              FileSystemOperation operation);
+
 	// Returns all configured operations across all filesystems.
 	vector<OperationConfig> GetAllConfigs() const;
 
@@ -97,8 +116,14 @@ public:
 	// Clears the configuration for an operation on a specific filesystem.
 	void ClearConfig(const string &filesystem_name, FileSystemOperation operation);
 
+	// Clears the configuration for an operation on a specific filesystem and bucket.
+	void ClearConfigBucket(const string &filesystem_name, const string &bucket, FileSystemOperation operation);
+
 	// Clears all configurations for a specific filesystem.
 	void ClearFilesystem(const string &filesystem_name);
+
+	// Clears all configurations for a specific filesystem and bucket.
+	void ClearFilesystemBucket(const string &filesystem_name, const string &bucket);
 
 	// Clears all configurations.
 	void ClearAll();
@@ -120,19 +145,26 @@ private:
 	// Key for the config map
 	struct ConfigKey {
 		string filesystem_name;
+		string bucket;
 		FileSystemOperation operation;
 
 		bool operator==(const ConfigKey &other) const {
-			return filesystem_name == other.filesystem_name && operation == other.operation;
+			return filesystem_name == other.filesystem_name && bucket == other.bucket && operation == other.operation;
 		}
 	};
 
 	struct ConfigKeyHash {
 		size_t operator()(const ConfigKey &key) const {
-			return std::hash<string>()(key.filesystem_name) ^
-			       (std::hash<uint8_t>()(static_cast<uint8_t>(key.operation)) << 1);
+			size_t h1 = std::hash<string>()(key.filesystem_name);
+			size_t h2 = std::hash<string>()(key.bucket);
+			size_t h3 = std::hash<uint8_t>()(static_cast<uint8_t>(key.operation));
+			return h1 ^ (h2 << 1) ^ (h3 << 2);
 		}
 	};
+
+	// Extracts bucket name from path using DuckDB's Path parser.
+	// Returns empty string if no bucket authority is present (e.g., local paths).
+	static string ExtractBucket(const string &path);
 
 	// Updates the rate limiter for an operation based on current config.
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);

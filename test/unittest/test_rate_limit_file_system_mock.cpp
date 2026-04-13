@@ -269,7 +269,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads within burst - no r
 	vector<thread> threads;
 
 	for (int i = 0; i < NUM_THREADS; i++) {
-		threads.emplace_back([&, i]() {
+		threads.emplace_back([&]() {
 			try {
 				auto handle = fs->OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 				string buffer(BYTES_PER_THREAD, '\0');
@@ -320,7 +320,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 	vector<thread> threads;
 
 	for (int i = 0; i < NUM_THREADS; i++) {
-		threads.emplace_back([&, i]() {
+		threads.emplace_back([&]() {
 			try {
 				auto handle = fs->OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 				string buffer(BYTES_PER_THREAD, '\0');
