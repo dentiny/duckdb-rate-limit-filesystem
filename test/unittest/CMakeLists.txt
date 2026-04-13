@@ -10,9 +10,11 @@ set(RATE_LIMITER_UNITTEST_OBJECTS
     test_filesystem_glob.cpp
     test_max_requests.cpp
     test_no_destructor.cpp
+    test_path_util.cpp
     test_rate_limit.cpp
     test_rate_limit_file_system.cpp
     test_rate_limit_file_system_mock.cpp
+    test_rate_limit_per_bucket.cpp
     test_scoped_directory.cpp)
 
 add_executable(unittest_rate_limiter main.cpp ${RATE_LIMITER_UNITTEST_OBJECTS})

@@ -22,6 +22,12 @@ void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(GetRateLimitFsClearFunction());
 	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
 
+	// Register bucket-specific rate limit configuration functions
+	loader.RegisterFunction(GetRateLimitFsQuotaBucketFunction());
+	loader.RegisterFunction(GetRateLimitFsBurstBucketFunction());
+	loader.RegisterFunction(GetRateLimitFsMaxRequestsBucketFunction());
+	loader.RegisterFunction(GetRateLimitFsClearBucketFunction());
+
 	// Register filesystem management functions
 	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
 	loader.RegisterFunction(GetRateLimitFsWrapFunction());

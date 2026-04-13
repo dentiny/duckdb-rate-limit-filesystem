@@ -110,7 +110,9 @@ protected:
 
 private:
 	[[nodiscard]] SemaphoreGuard AcquireConcurrencySlot(FileSystemOperation operation);
+	[[nodiscard]] SemaphoreGuard AcquireConcurrencySlotForPath(const string &path, FileSystemOperation operation);
 	void ApplyRateLimit(FileSystemOperation operation, idx_t bytes = 1);
+	void ApplyRateLimitForPath(const string &path, FileSystemOperation operation, idx_t bytes = 1);
 	FileHandle &GetInnerFileHandle(FileHandle &handle);
 
 	string filesystem_name;
