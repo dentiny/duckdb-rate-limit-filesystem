@@ -1,3 +1,17 @@
+# 0.0.6
+
+## Fixed
+
+- Add missing filesystem API ([#33])
+
+[#33]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/33
+
+## Added
+
+- Add rate limit for directory creation ([#35])
+
+[#35]: https://github.com/dentiny/duckdb-rate-limit-filesystem/pull/35
+
 # 0.0.5
 
 ## Improved
