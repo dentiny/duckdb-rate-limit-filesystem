@@ -50,4 +50,42 @@ ScalarFunction GetRateLimitFsMaxRequestsFunction();
 // Returns true on success.
 ScalarFunction GetRateLimitFsWrapFunction();
 
+// Bucket-specific rate limiting functions
+
+// Scalar function: rate_limit_fs_quota_bucket(filesystem_name VARCHAR, bucket VARCHAR, operation VARCHAR, value BIGINT,
+// mode VARCHAR) -> BOOLEAN Sets the rate limit quota for a specific bucket on a filesystem.
+// - filesystem_name: The filesystem name to configure
+// - bucket: The bucket name (e.g., S3 bucket name)
+// - operation: The operation name (e.g., 'read', 'write', 'list')
+// - value: The quota value in bytes per second
+// - mode: 'blocking' or 'non_blocking'
+// Returns true on success.
+ScalarFunction GetRateLimitFsQuotaBucketFunction();
+
+// Scalar function: rate_limit_fs_burst_bucket(filesystem_name VARCHAR, bucket VARCHAR, operation VARCHAR, value BIGINT)
+// -> BOOLEAN Sets the burst limit for a specific bucket on a filesystem.
+// - filesystem_name: The filesystem name to configure
+// - bucket: The bucket name
+// - operation: The operation name (e.g., 'read', 'write')
+// - value: The burst value in bytes
+// Returns true on success.
+ScalarFunction GetRateLimitFsBurstBucketFunction();
+
+// Scalar function: rate_limit_fs_max_requests_bucket(filesystem_name VARCHAR, bucket VARCHAR, operation VARCHAR, value
+// BIGINT) -> BOOLEAN Sets the max concurrent requests for a specific bucket on a filesystem.
+// - filesystem_name: The filesystem name to configure
+// - bucket: The bucket name
+// - operation: The operation name
+// - value: -1 for unlimited, or a positive integer for the concurrency cap
+// Returns true on success.
+ScalarFunction GetRateLimitFsMaxRequestsBucketFunction();
+
+// Scalar function: rate_limit_fs_clear_bucket(filesystem_name VARCHAR, bucket VARCHAR, operation VARCHAR) -> BOOLEAN
+// Clears the rate limit configuration for a specific bucket.
+// - filesystem_name: The filesystem name
+// - bucket: The bucket name
+// - operation: The operation name to clear, or '*' to clear all operations for the bucket
+// Returns true on success.
+ScalarFunction GetRateLimitFsClearBucketFunction();
+
 } // namespace duckdb
