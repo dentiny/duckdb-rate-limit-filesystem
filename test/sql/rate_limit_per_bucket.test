@@ -1,0 +1,229 @@
+# name: test/sql/rate_limit_per_bucket.test
+# description: test per-bucket rate limit configuration
+# group: [sql]
+
+require rate_limit_fs
+
+# First wrap the fake filesystem so rate limiting can be applied
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
+# =============================================================================
+# Per-bucket configuration tests
+# =============================================================================
+
+# Test setting bucket-specific quota
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'prod-bucket', 'read', 2000000, 'blocking');
+----
+true
+
+# Verify bucket-specific config shows up in configs table
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'prod-bucket';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	0	-1
+
+# Test setting bucket-specific burst
+query I
+SELECT rate_limit_fs_burst_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'prod-bucket', 'read', 10000000);
+----
+true
+
+# Verify burst was added
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'prod-bucket';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	-1
+
+# Test setting bucket-specific max_requests
+query I
+SELECT rate_limit_fs_max_requests_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'prod-bucket', 'read', 20);
+----
+true
+
+# Verify max_requests was added
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'prod-bucket';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	20
+
+# =============================================================================
+# Multiple buckets with different limits
+# =============================================================================
+
+# Add another bucket with different limits
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'dev-bucket', 'read', 500000, 'non_blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_burst_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'dev-bucket', 'read', 1000000);
+----
+true
+
+# Verify both buckets exist with different configs
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket IS NOT NULL ORDER BY bucket;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	dev-bucket	read	500000	non_blocking	1000000	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	20
+
+# =============================================================================
+# Filesystem-level and bucket-level configs coexist
+# =============================================================================
+
+# Add filesystem-level config
+query I
+SELECT rate_limit_fs_quota('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'read', 1000000, 'blocking');
+----
+true
+
+# Verify all configs exist (filesystem-level has NULL bucket)
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read' ORDER BY bucket NULLS FIRST;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	NULL	read	1000000	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	dev-bucket	read	500000	non_blocking	1000000	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	20
+
+# =============================================================================
+# Clear bucket-specific configs
+# =============================================================================
+
+# Clear one operation for a specific bucket
+query I
+SELECT rate_limit_fs_clear_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'dev-bucket', 'read');
+----
+true
+
+# Verify dev-bucket config is removed
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'dev-bucket';
+----
+
+# Verify other configs still exist
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read' ORDER BY bucket NULLS FIRST;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	NULL	read	1000000	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	20
+
+# Add multiple operations for a bucket
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'test-bucket', 'read', 100, 'blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'test-bucket', 'write', 200, 'blocking');
+----
+true
+
+# Verify both operations exist for test-bucket
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'test-bucket' ORDER BY operation;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	test-bucket	read	100	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	test-bucket	write	200	blocking	0	-1
+
+# Clear all operations for test-bucket using wildcard
+query I
+SELECT rate_limit_fs_clear_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'test-bucket', '*');
+----
+true
+
+# Verify test-bucket configs are removed
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'test-bucket';
+----
+
+# Verify other configs still exist
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE operation = 'read' ORDER BY bucket NULLS FIRST;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	NULL	read	1000000	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	2000000	blocking	10000000	20
+
+# =============================================================================
+# Bucket names with special characters
+# =============================================================================
+
+# Test bucket with hyphens and underscores
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'my-test_bucket-123', 'read', 5000, 'non_blocking');
+----
+true
+
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'my-test_bucket-123';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	my-test_bucket-123	read	5000	non_blocking	0	-1
+
+# =============================================================================
+# Different operations for the same bucket
+# =============================================================================
+
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'multi-op-bucket', 'read', 1000, 'blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'multi-op-bucket', 'write', 2000, 'non_blocking');
+----
+true
+
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'multi-op-bucket', 'list', 100, 'blocking');
+----
+true
+
+# Verify all operations for the bucket
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'multi-op-bucket' ORDER BY operation;
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	multi-op-bucket	list	100	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	multi-op-bucket	read	1000	blocking	0	-1
+RateLimitFileSystem - RateLimitFsFakeFileSystem	multi-op-bucket	write	2000	non_blocking	0	-1
+
+# =============================================================================
+# Update existing bucket-specific config
+# =============================================================================
+
+# Update quota for existing bucket
+query I
+SELECT rate_limit_fs_quota_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'prod-bucket', 'read', 3000000, 'non_blocking');
+----
+true
+
+# Verify the config was updated (UPSERT behavior)
+query IIIIIII
+SELECT * FROM rate_limit_fs_configs() WHERE bucket = 'prod-bucket';
+----
+RateLimitFileSystem - RateLimitFsFakeFileSystem	prod-bucket	read	3000000	non_blocking	10000000	20
+
+# =============================================================================
+# Burst limits only for READ and WRITE operations
+# =============================================================================
+
+# Test that burst limit works for write
+query I
+SELECT rate_limit_fs_burst_bucket('RateLimitFileSystem - RateLimitFsFakeFileSystem', 'write-bucket', 'write', 5000);
+----
+true
+
+# Clear everything for final cleanup
+query I
+SELECT rate_limit_fs_clear('*', '*');
+----
+true
+
+# Verify all configs are cleared
+query I
+SELECT COUNT(*) FROM rate_limit_fs_configs();
+----
+0
