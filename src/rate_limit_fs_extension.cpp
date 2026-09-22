@@ -6,25 +6,14 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/opener_file_system.hpp"
-#include "duckdb/function/scalar_function.hpp"
-#include "duckdb/function/table_function.hpp"
 #include "fake_filesystem.hpp"
-#include "rate_limit_functions.hpp"
+#include "rate_limit_function_registration.hpp"
 
 namespace duckdb {
 
 namespace {
 void LoadInternal(ExtensionLoader &loader) {
-	// Register rate limit configuration functions
-	loader.RegisterFunction(GetRateLimitFsQuotaFunction());
-	loader.RegisterFunction(GetRateLimitFsBurstFunction());
-	loader.RegisterFunction(GetRateLimitFsMaxRequestsFunction());
-	loader.RegisterFunction(GetRateLimitFsClearFunction());
-	loader.RegisterFunction(GetRateLimitFsConfigsFunction());
-
-	// Register filesystem management functions
-	loader.RegisterFunction(GetRateLimitFsListFilesystemsFunction());
-	loader.RegisterFunction(GetRateLimitFsWrapFunction());
+	RegisterRateLimitFunctions(loader);
 
 	// TODO(hjiang): Register a fake filesystem at extension load for testing purpose. This is not ideal since
 	// additional necessary instance is shipped in the extension. Local filesystem is not viable because it's not
