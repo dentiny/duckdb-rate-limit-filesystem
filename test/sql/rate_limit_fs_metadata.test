@@ -1,0 +1,24 @@
+# name: test/sql/rate_limit_fs_metadata.test
+# description: test catalog metadata for rate_limit_fs functions
+# group: [sql]
+
+require rate_limit_fs
+
+query I
+SELECT count(*)
+FROM duckdb_functions()
+WHERE function_name IN (
+    'rate_limit_fs_burst',
+    'rate_limit_fs_clear',
+    'rate_limit_fs_configs',
+    'rate_limit_fs_list_filesystems',
+    'rate_limit_fs_max_requests',
+    'rate_limit_fs_quota',
+    'rate_limit_fs_wrap'
+)
+AND description IS NOT NULL
+AND parameters IS NOT NULL
+AND examples IS NOT NULL
+AND categories IS NOT NULL;
+----
+7
