@@ -61,7 +61,7 @@ void RateLimitFsQuotaFunction(DataChunk &args, ExpressionState &state, Vector &r
 	const auto mode_enum = ParseRateLimitMode(mode_str);
 
 	config->SetQuota(fs_str, op_enum, static_cast<idx_t>(value), mode_enum);
-	result.Reference(Value::BOOLEAN(true), args.size());
+	result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 }
 
 //===--------------------------------------------------------------------===//
@@ -85,7 +85,7 @@ void RateLimitFsBurstFunction(DataChunk &args, ExpressionState &state, Vector &r
 	auto op_enum = ParseFileSystemOperation(op_str);
 
 	config->SetBurst(fs_str, op_enum, static_cast<idx_t>(value));
-	result.Reference(Value::BOOLEAN(true), args.size());
+	result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 }
 
 //===--------------------------------------------------------------------===//
@@ -104,20 +104,20 @@ void RateLimitFsClearFunction(DataChunk &args, ExpressionState &state, Vector &r
 
 	if (fs_str == "*") {
 		config->ClearAll();
-		result.Reference(Value::BOOLEAN(true), args.size());
+		result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 		return;
 	}
 
 	if (op_str == "*") {
 		config->ClearFilesystem(fs_str);
-		result.Reference(Value::BOOLEAN(true), args.size());
+		result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 		return;
 	}
 
 	auto op_enum = ParseFileSystemOperation(op_str);
 	config->ClearConfig(fs_str, op_enum);
 
-	result.Reference(Value::BOOLEAN(true), args.size());
+	result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 }
 
 //===--------------------------------------------------------------------===//
@@ -137,7 +137,7 @@ void RateLimitFsMaxRequestsFunction(DataChunk &args, ExpressionState &state, Vec
 	auto op_enum = ParseFileSystemOperation(op_str);
 
 	config->SetMaxRequests(fs_str, op_enum, value);
-	result.Reference(Value::BOOLEAN(true), args.size());
+	result.Reference(Value::BOOLEAN(true), count_t(args.size()));
 }
 
 //===--------------------------------------------------------------------===//

@@ -139,7 +139,7 @@ std::optional<WaitInfo> RateLimiter::TryAcquireImmediate(idx_t n) {
 	// Check burst limit only if burst limiting is enabled
 	if (quota.HasBurstLimiting() && n > quota.GetBurst()) {
 		// Return max wait to indicate insufficient capacity
-		return WaitInfo {TimePoint::max(), Duration::max()};
+		return WaitInfo {RateLimitTimePoint::max(), Duration::max()};
 	}
 
 	// If no rate limiting, always allowed immediately
@@ -164,15 +164,15 @@ const shared_ptr<BaseClock> &RateLimiter::GetClock() const {
 	return clock;
 }
 
-int64_t RateLimiter::ToNanos(TimePoint tp) {
+int64_t RateLimiter::ToNanos(RateLimitTimePoint tp) {
 	return std::chrono::duration_cast<Duration>(tp.time_since_epoch()).count();
 }
 
-TimePoint RateLimiter::FromNanos(int64_t nanos) {
-	return TimePoint(Duration(nanos));
+RateLimitTimePoint RateLimiter::FromNanos(int64_t nanos) {
+	return RateLimitTimePoint(Duration(nanos));
 }
 
-RateLimiter::AcquireDecision RateLimiter::TryAcquire(TimePoint now, idx_t n) {
+RateLimiter::AcquireDecision RateLimiter::TryAcquire(RateLimitTimePoint now, idx_t n) {
 	auto emission_interval = quota.GetEmissionInterval();
 	auto delay_tolerance = quota.GetDelayTolerance();
 

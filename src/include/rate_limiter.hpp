@@ -82,7 +82,7 @@ enum class RateLimitResult {
 // Information about when to retry after rate limiting.
 struct WaitInfo {
 	// The time point at which the request can be retried
-	TimePoint ready_at;
+	RateLimitTimePoint ready_at;
 	// Duration to wait from now
 	Duration wait_duration;
 };
@@ -131,14 +131,14 @@ private:
 		std::optional<WaitInfo> wait_info;
 	};
 
-	// Converts a TimePoint to nanoseconds since epoch.
-	static int64_t ToNanos(TimePoint tp);
+	// Converts a RateLimitTimePoint to nanoseconds since epoch.
+	static int64_t ToNanos(RateLimitTimePoint tp);
 
-	// Converts nanoseconds since epoch to a TimePoint.
-	static TimePoint FromNanos(int64_t nanos);
+	// Converts nanoseconds since epoch to a RateLimitTimePoint.
+	static RateLimitTimePoint FromNanos(int64_t nanos);
 
 	// Tries to acquire rate limit at a specific time point.
-	AcquireDecision TryAcquire(TimePoint now, idx_t n);
+	AcquireDecision TryAcquire(RateLimitTimePoint now, idx_t n);
 
 	Quota quota;
 	shared_ptr<BaseClock> clock;

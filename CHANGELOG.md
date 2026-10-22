@@ -9,6 +9,7 @@
 
 ## Fixed
 
+- Avoid DuckDB TimePoint name collisions with a throttle-specific clock alias, pass typed scalar row counts, and declare argument-validating scalar functions fallible.
 - Protect configuration snapshot sizing with its configuration mutex.
 - Link unit tests correctly against prebuilt DuckDB static libraries.
 

@@ -4,10 +4,10 @@
 
 namespace duckdb {
 
-MockClock::MockClock(TimePoint initial_time) : current_time(initial_time) {
+MockClock::MockClock(RateLimitTimePoint initial_time) : current_time(initial_time) {
 }
 
-TimePoint MockClock::Now() const {
+RateLimitTimePoint MockClock::Now() const {
 	return current_time;
 }
 
@@ -15,7 +15,7 @@ void MockClock::SleepFor(Duration duration_p) const {
 	current_time += duration_p;
 }
 
-void MockClock::SleepUntil(TimePoint time_point) const {
+void MockClock::SleepUntil(RateLimitTimePoint time_point) const {
 	if (time_point > current_time) {
 		current_time = time_point;
 	}
@@ -25,11 +25,11 @@ void MockClock::Advance(Duration duration_p) {
 	current_time += duration_p;
 }
 
-void MockClock::SetTime(TimePoint time_point) {
+void MockClock::SetTime(RateLimitTimePoint time_point) {
 	current_time = time_point;
 }
 
-shared_ptr<MockClock> CreateMockClock(TimePoint initial_time) {
+shared_ptr<MockClock> CreateMockClock(RateLimitTimePoint initial_time) {
 	return make_shared_ptr<MockClock>(initial_time);
 }
 

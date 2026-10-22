@@ -8,9 +8,9 @@ namespace duckdb {
 // Thread-safe and suitable for production use.
 class DefaultClock : public BaseClock {
 public:
-	TimePoint Now() const override;
+	RateLimitTimePoint Now() const override;
 	void SleepFor(Duration duration) const override;
-	void SleepUntil(TimePoint time_point) const override;
+	void SleepUntil(RateLimitTimePoint time_point) const override;
 };
 
 // Creates a default clock instance.

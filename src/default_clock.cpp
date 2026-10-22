@@ -6,7 +6,7 @@
 
 namespace duckdb {
 
-TimePoint DefaultClock::Now() const {
+RateLimitTimePoint DefaultClock::Now() const {
 	return std::chrono::steady_clock::now();
 }
 
@@ -14,7 +14,7 @@ void DefaultClock::SleepFor(Duration duration) const {
 	std::this_thread::sleep_for(duration);
 }
 
-void DefaultClock::SleepUntil(TimePoint time_point) const {
+void DefaultClock::SleepUntil(RateLimitTimePoint time_point) const {
 	std::this_thread::sleep_until(time_point);
 }
 

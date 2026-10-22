@@ -82,7 +82,7 @@ TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 	Quota quota(/*bandwidth_p=*/100, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	TimePoint start_time = clock->Now();
+	RateLimitTimePoint start_time = clock->Now();
 
 	// Use full burst (100 bytes)
 	limiter->UntilNReady(100);
@@ -93,7 +93,7 @@ TEST_CASE("Rate limit - UntilNReady blocks and advances mock clock", "[rate]") {
 	// Third request will block (advancing mock clock via SleepUntil)
 	limiter->UntilNReady(100);
 
-	TimePoint end_time = clock->Now();
+	RateLimitTimePoint end_time = clock->Now();
 
 	// Time should have advanced by approximately 1 second (100 bytes at 100 bytes/sec)
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -219,7 +219,7 @@ TEST_CASE("Rate limit - no rate limiting mode passes immediately", "[rate]") {
 	Quota quota(/*bandwidth_p=*/0, /*burst_p=*/100);
 	auto limiter = RateLimiter::Direct(quota, clock);
 
-	TimePoint start_time = clock->Now();
+	RateLimitTimePoint start_time = clock->Now();
 
 	// Multiple requests should pass immediately without advancing clock
 	for (int i = 0; i < 100; i++) {
@@ -227,7 +227,7 @@ TEST_CASE("Rate limit - no rate limiting mode passes immediately", "[rate]") {
 		REQUIRE(result == RateLimitResult::Allowed);
 	}
 
-	TimePoint end_time = clock->Now();
+	RateLimitTimePoint end_time = clock->Now();
 
 	// No time should have passed (no rate limiting)
 	REQUIRE(start_time == end_time);
