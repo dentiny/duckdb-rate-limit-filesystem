@@ -6,7 +6,7 @@
 namespace duckdb {
 
 // Time point type used throughout the throttle layer.
-using TimePoint = std::chrono::steady_clock::time_point;
+using RateLimitTimePoint = std::chrono::steady_clock::time_point;
 
 // Duration type used throughout the throttle layer.
 using Duration = std::chrono::nanoseconds;
@@ -22,13 +22,13 @@ public:
 	virtual ~BaseClock() = default;
 
 	// Returns the current time point.
-	virtual TimePoint Now() const = 0;
+	virtual RateLimitTimePoint Now() const = 0;
 
 	// Sleeps for the specified duration.
 	virtual void SleepFor(Duration duration) const = 0;
 
 	// Sleeps until the specified time point.
-	virtual void SleepUntil(TimePoint time_point) const = 0;
+	virtual void SleepUntil(RateLimitTimePoint time_point) const = 0;
 };
 
 } // namespace duckdb

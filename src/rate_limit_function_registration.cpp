@@ -33,6 +33,7 @@ void RegisterFunction(ExtensionLoader &loader, FUNCTION function, vector<string>
 
 void RegisterScalarFunction(ExtensionLoader &loader, ScalarFunction function, vector<string> parameter_names,
                             string description, vector<string> examples, vector<string> categories) {
+	function.SetFallible();
 	RegisterFunction<CreateScalarFunctionInfo>(loader, std::move(function), std::move(parameter_names),
 	                                           std::move(description), std::move(examples), std::move(categories));
 }
