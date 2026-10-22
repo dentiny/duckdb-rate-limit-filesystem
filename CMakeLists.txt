@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 # Set extension name here
 set(TARGET_NAME rate_limit_fs)
@@ -12,34 +12,29 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
 set(EXTENSION_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/include")
 
-include_directories(
-  ${EXTENSION_INCLUDE_DIR}
-)
+include_directories(${EXTENSION_INCLUDE_DIR})
 
 file(GLOB_RECURSE EXTENSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 set(PARAMETERS "-warnings")
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
-target_include_directories(${EXTENSION_NAME} PUBLIC
-    $<BUILD_INTERFACE:${EXTENSION_INCLUDE_DIR}>
-    $<INSTALL_INTERFACE:include>  
-)
+target_include_directories(
+  ${EXTENSION_NAME} PUBLIC $<BUILD_INTERFACE:${EXTENSION_INCLUDE_DIR}>
+                           $<INSTALL_INTERFACE:include>)
 
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
-target_include_directories(${LOADABLE_EXTENSION_NAME} PUBLIC
-    $<BUILD_INTERFACE:${EXTENSION_INCLUDE_DIR}>
-    $<INSTALL_INTERFACE:include>
-)
+target_include_directories(
+  ${LOADABLE_EXTENSION_NAME} PUBLIC $<BUILD_INTERFACE:${EXTENSION_INCLUDE_DIR}>
+                                    $<INSTALL_INTERFACE:include>)
 
 install(
   TARGETS ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME}
   EXPORT "${DUCKDB_EXPORT_SET}"
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
-  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
-)
+  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
 # Windows has link issues.
-if(NOT WIN32)
+if(BUILD_UNITTESTS AND NOT WIN32)
   add_subdirectory(test/unittest)
 endif()

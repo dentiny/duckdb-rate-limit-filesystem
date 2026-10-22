@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+#include "duckdb/common/mutex.hpp"
 #include "duckdb/common/shared_ptr.hpp"
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/types.hpp"
@@ -9,7 +11,6 @@
 #include "base_clock.hpp"
 #include "counting_semaphore.hpp"
 #include "file_system_operation.hpp"
-#include "mutex.hpp"
 #include "rate_limit_mode.hpp"
 #include "rate_limiter.hpp"
 
@@ -43,8 +44,8 @@ struct OperationConfig {
 // Per-DuckDB-instance rate limit configuration storage.
 class RateLimitConfig : public ObjectCacheEntry {
 public:
-	static constexpr const char *OBJECT_TYPE = "rate_limit_config";
-	static constexpr const char *CACHE_KEY = "rate_limit_fs_config";
+	static constexpr std::string_view OBJECT_TYPE = "rate_limit_config";
+	static constexpr std::string_view CACHE_KEY = "rate_limit_fs_config";
 
 	RateLimitConfig();
 	~RateLimitConfig() override;
@@ -137,7 +138,7 @@ private:
 	// Updates the rate limiter for an operation based on current config.
 	void UpdateRateLimiter(OperationConfig &config) DUCKDB_REQUIRES(config_lock);
 
-	mutable concurrency::mutex config_lock;
+	mutable annotated_mutex config_lock;
 	// Maps from (filesystem_name, operation) to its configuration.
 	unordered_map<ConfigKey, OperationConfig, ConfigKeyHash> configs DUCKDB_GUARDED_BY(config_lock);
 	// Clock to use for rate limiters (nullptr means use default clock).
