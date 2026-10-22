@@ -8,11 +8,11 @@ CountingSemaphore::CountingSemaphore(int64_t max_count) : max_count(max_count), 
 }
 
 void CountingSemaphore::Acquire() {
-	concurrency::unique_lock<concurrency::mutex> lock(mtx);
+	annotated_unique_lock<annotated_mutex> lock(mtx);
 	if (max_count == UNLIMITED) {
 		return;
 	}
-	cv.wait(lock, [this] { return current_count < max_count || max_count == UNLIMITED; });
+	cv.wait(lock, [this]() DUCKDB_REQUIRES(mtx) { return current_count < max_count || max_count == UNLIMITED; });
 	if (max_count != UNLIMITED) {
 		++current_count;
 	}
@@ -20,7 +20,7 @@ void CountingSemaphore::Acquire() {
 
 void CountingSemaphore::Release() {
 	{
-		concurrency::lock_guard<concurrency::mutex> guard(mtx);
+		annotated_lock_guard<annotated_mutex> guard(mtx);
 		if (max_count == UNLIMITED) {
 			return;
 		}
@@ -38,19 +38,19 @@ SemaphoreGuard CountingSemaphore::AcquireGuard() {
 
 void CountingSemaphore::SetMax(int64_t new_max) {
 	{
-		concurrency::lock_guard<concurrency::mutex> guard(mtx);
+		annotated_lock_guard<annotated_mutex> guard(mtx);
 		max_count = new_max;
 	}
 	cv.notify_all();
 }
 
 int64_t CountingSemaphore::GetMax() const {
-	concurrency::lock_guard<concurrency::mutex> guard(mtx);
+	annotated_lock_guard<annotated_mutex> guard(mtx);
 	return max_count;
 }
 
 int64_t CountingSemaphore::GetCurrent() const {
-	concurrency::lock_guard<concurrency::mutex> guard(mtx);
+	annotated_lock_guard<annotated_mutex> guard(mtx);
 	return current_count;
 }
 

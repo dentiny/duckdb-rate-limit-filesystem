@@ -12,17 +12,17 @@ RateLimitConfig::RateLimitConfig() = default;
 RateLimitConfig::~RateLimitConfig() = default;
 
 string RateLimitConfig::GetObjectType() {
-	return OBJECT_TYPE;
+	return string(OBJECT_TYPE);
 }
 
 string RateLimitConfig::ObjectType() {
-	return OBJECT_TYPE;
+	return string(OBJECT_TYPE);
 }
 
 void RateLimitConfig::SetQuota(const string &filesystem_name, FileSystemOperation operation, idx_t value,
                                RateLimitMode mode) {
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
@@ -53,7 +53,7 @@ void RateLimitConfig::SetBurst(const string &filesystem_name, FileSystemOperatio
 	}
 
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == 0) {
@@ -86,7 +86,7 @@ void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOp
 	}
 
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		if (value == CountingSemaphore::UNLIMITED) {
@@ -116,7 +116,7 @@ void RateLimitConfig::SetMaxRequests(const string &filesystem_name, FileSystemOp
 
 const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name, FileSystemOperation operation) const {
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return nullptr;
@@ -127,7 +127,7 @@ const OperationConfig *RateLimitConfig::GetConfig(const string &filesystem_name,
 SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesystem_name,
                                                           FileSystemOperation operation) {
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return nullptr;
@@ -142,7 +142,7 @@ SharedRateLimiter RateLimitConfig::GetOrCreateRateLimiter(const string &filesyst
 shared_ptr<CountingSemaphore> RateLimitConfig::GetOrCreateSemaphore(const string &filesystem_name,
                                                                     FileSystemOperation operation) {
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return nullptr;
@@ -162,7 +162,7 @@ RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshot(const s
                                                                          FileSystemOperation operation) {
 	RateLimitSnapshot snapshot;
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto it = configs.find(key);
 	if (it == configs.end()) {
 		return snapshot;
@@ -189,9 +189,8 @@ RateLimitConfig::RateLimitSnapshot RateLimitConfig::GetRateLimitSnapshot(const s
 
 vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 	vector<OperationConfig> result;
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	result.reserve(configs.size());
-
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
 	for (const auto &pair : configs) {
 		result.push_back(pair.second);
 	}
@@ -201,7 +200,7 @@ vector<OperationConfig> RateLimitConfig::GetAllConfigs() const {
 vector<OperationConfig> RateLimitConfig::GetConfigsForFilesystem(const string &filesystem_name) const {
 	vector<OperationConfig> result;
 
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	for (const auto &pair : configs) {
 		if (pair.first.filesystem_name == filesystem_name) {
 			result.push_back(pair.second);
@@ -212,12 +211,12 @@ vector<OperationConfig> RateLimitConfig::GetConfigsForFilesystem(const string &f
 
 void RateLimitConfig::ClearConfig(const string &filesystem_name, FileSystemOperation operation) {
 	ConfigKey key {filesystem_name, operation};
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	configs.erase(key);
 }
 
 void RateLimitConfig::ClearFilesystem(const string &filesystem_name) {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	for (auto it = configs.begin(); it != configs.end();) {
 		if (it->first.filesystem_name == filesystem_name) {
 			it = configs.erase(it);
@@ -228,17 +227,17 @@ void RateLimitConfig::ClearFilesystem(const string &filesystem_name) {
 }
 
 void RateLimitConfig::ClearAll() {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	configs.clear();
 }
 
 shared_ptr<RateLimitConfig> RateLimitConfig::GetOrCreate(ClientContext &context) {
 	auto &cache = ObjectCache::GetObjectCache(context);
-	auto config = cache.GetOrCreate<RateLimitConfig>(CACHE_KEY);
+	auto config = cache.GetOrCreate<RateLimitConfig>(string(CACHE_KEY));
 
 	// Set the database instance for logging
 	{
-		concurrency::lock_guard<concurrency::mutex> guard(config->config_lock);
+		annotated_lock_guard<annotated_mutex> guard(config->config_lock);
 		if (config->db_instance.expired()) {
 			auto &db = DatabaseInstance::GetDatabase(context);
 			config->db_instance = db.shared_from_this();
@@ -250,11 +249,11 @@ shared_ptr<RateLimitConfig> RateLimitConfig::GetOrCreate(ClientContext &context)
 
 shared_ptr<RateLimitConfig> RateLimitConfig::Get(ClientContext &context) {
 	auto &cache = ObjectCache::GetObjectCache(context);
-	return cache.Get<RateLimitConfig>(CACHE_KEY);
+	return cache.Get<RateLimitConfig>(string(CACHE_KEY));
 }
 
 shared_ptr<DatabaseInstance> RateLimitConfig::GetDatabaseInstance() const {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	auto db = db_instance.lock();
 	if (!db) {
 		throw InternalException("Database instance is no longer available");
@@ -263,7 +262,7 @@ shared_ptr<DatabaseInstance> RateLimitConfig::GetDatabaseInstance() const {
 }
 
 void RateLimitConfig::SetClock(shared_ptr<BaseClock> clock_p) {
-	concurrency::lock_guard<concurrency::mutex> guard(config_lock);
+	annotated_lock_guard<annotated_mutex> guard(config_lock);
 	clock = std::move(clock_p);
 
 	// Update all existing rate limiters to use the new clock

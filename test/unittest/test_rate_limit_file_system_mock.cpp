@@ -1,5 +1,6 @@
 #include "catch/catch.hpp"
 
+#include <string_view>
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -16,8 +17,8 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs_mock";
-constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
+constexpr std::string_view TEST_DIR = "/tmp/test_rate_limit_fs_mock";
+constexpr std::string_view TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
 string CreateTempFile(const string &dir, const string &filename, const string &content) {
@@ -38,15 +39,15 @@ string CreateTempFile(const string &dir, const string &filename, const string &c
 
 TEST_CASE("RateLimitFileSystem - MockClock: non-blocking throws after exhausting burst",
           "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 20 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -72,15 +73,15 @@ TEST_CASE("RateLimitFileSystem - MockClock: non-blocking throws after exhausting
 }
 
 TEST_CASE("RateLimitFileSystem - MockClock: advancing time restores capacity", "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 10 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -114,15 +115,15 @@ TEST_CASE("RateLimitFileSystem - MockClock: advancing time restores capacity", "
 
 TEST_CASE("RateLimitFileSystem - MockClock: partial time advance restores partial capacity",
           "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 10 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -164,7 +165,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: partial time advance restores partia
 }
 
 TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
@@ -173,7 +174,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 	// 2 ops/sec rate (no burst for non-byte operations)
 	// Each operation takes 500ms of "time budget"
 	// With burst=0, effective_burst=1, tolerance=500ms allows 2 operations
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::STAT, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -201,14 +202,14 @@ TEST_CASE("RateLimitFileSystem - MockClock: stat operations with mock clock", "[
 }
 
 TEST_CASE("RateLimitFileSystem - MockClock: mkdir operations with mock clock", "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 2 mkdir ops/sec — same token-bucket behavior as STAT/LIST for count-based ops
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -223,13 +224,13 @@ TEST_CASE("RateLimitFileSystem - MockClock: mkdir operations with mock clock", "
 }
 
 TEST_CASE("RateLimitFileSystem - MockClock: mkdir recursive shares mkdir rate limit", "[rate_limit_fs][mock_clock]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::MKDIR, 2, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -245,15 +246,15 @@ TEST_CASE("RateLimitFileSystem - MockClock: mkdir recursive shares mkdir rate li
 
 TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads within burst - no rate limit triggered",
           "[rate_limit_fs][mock_clock][concurrent]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 100 bytes/sec rate, 100 byte burst - enough for all concurrent reads
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 100, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 100);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 100, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 100);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
@@ -295,7 +296,7 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads within burst - no r
 
 TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate limit triggered",
           "[rate_limit_fs][mock_clock][concurrent]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
@@ -303,8 +304,8 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 
 	// 10 bytes/sec rate, 30 byte burst - not enough for all concurrent reads
 	// With tolerance window, more than 3 threads might succeed, so adjust expectation
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 30);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 30);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	auto fs = make_shared_ptr<RateLimitFileSystem>(std::move(inner_fs), config);
@@ -348,15 +349,15 @@ TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads exceed burst - rate
 
 TEST_CASE("RateLimitFileSystem - MockClock: concurrent reads with time advance",
           "[rate_limit_fs][mock_clock][concurrent]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto mock_clock = CreateMockClock();
 	auto config = make_shared_ptr<RateLimitConfig>();
 	config->SetClock(mock_clock);
 
 	// 10 bytes/sec rate, 20 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 20);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 10, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 20);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);

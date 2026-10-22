@@ -1,3 +1,17 @@
+# 0.1.0
+
+## Changed
+
+- Upgrade DuckDB to `v2.0.0` and extension-ci-tools to the latest commit.
+- Require C++17 or newer and use DuckDB identifiers for table function columns.
+- Replace copied thread annotation and lock implementations with DuckDB utilities.
+- Use explicit vector append/cardinality APIs and C++17 string views and type traits.
+
+## Fixed
+
+- Protect configuration snapshot sizing with its configuration mutex.
+- Link unit tests correctly against prebuilt DuckDB static libraries.
+
 # 0.0.10
 
 ## Changed

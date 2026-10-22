@@ -1,5 +1,6 @@
 #include "catch/catch.hpp"
 
+#include <string_view>
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -15,8 +16,8 @@ using namespace duckdb;
 
 namespace {
 
-constexpr const char *TEST_DIR = "/tmp/test_max_requests";
-constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
+constexpr std::string_view TEST_DIR = "/tmp/test_max_requests";
+constexpr std::string_view TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 string CreateTempFile(const string &dir, const string &filename, const string &content) {
 	string path = StringUtil::Format("%s/%s", dir, filename);
@@ -49,8 +50,8 @@ public:
 TEST_CASE("MaxRequests - config stored and retrieved", "[max_requests]") {
 	auto config = make_shared_ptr<RateLimitConfig>();
 
-	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::READ, 5);
-	auto op_config = config->GetConfig(TEST_FS_NAME, FileSystemOperation::READ);
+	config->SetMaxRequests(string(TEST_FS_NAME), FileSystemOperation::READ, 5);
+	auto op_config = config->GetConfig(string(TEST_FS_NAME), FileSystemOperation::READ);
 	REQUIRE(op_config != nullptr);
 	REQUIRE(op_config->max_requests == 5);
 }
@@ -58,21 +59,21 @@ TEST_CASE("MaxRequests - config stored and retrieved", "[max_requests]") {
 TEST_CASE("MaxRequests - reset to -1 keeps config if rate limit exists", "[max_requests]") {
 	auto config = make_shared_ptr<RateLimitConfig>();
 
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 1000, RateLimitMode::BLOCKING);
-	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::READ, 5);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 1000, RateLimitMode::BLOCKING);
+	config->SetMaxRequests(string(TEST_FS_NAME), FileSystemOperation::READ, 5);
 
-	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::READ, -1);
-	auto op_config = config->GetConfig(TEST_FS_NAME, FileSystemOperation::READ);
+	config->SetMaxRequests(string(TEST_FS_NAME), FileSystemOperation::READ, -1);
+	auto op_config = config->GetConfig(string(TEST_FS_NAME), FileSystemOperation::READ);
 	REQUIRE(op_config != nullptr);
 	REQUIRE(op_config->quota == 1000);
 	REQUIRE(op_config->max_requests == -1);
 }
 
 TEST_CASE("MaxRequests - operations work with concurrency limit", "[max_requests]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::STAT, 2);
+	config->SetMaxRequests(string(TEST_FS_NAME), FileSystemOperation::STAT, 2);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -83,10 +84,10 @@ TEST_CASE("MaxRequests - operations work with concurrency limit", "[max_requests
 }
 
 TEST_CASE("MaxRequests - limit=1 serializes operations", "[max_requests]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	config->SetMaxRequests(TEST_FS_NAME, FileSystemOperation::STAT, 1);
+	config->SetMaxRequests(string(TEST_FS_NAME), FileSystemOperation::STAT, 1);
 
 	auto inner_fs = make_uniq<ConcurrencyTrackingFileSystem>();
 	auto &tracking = *inner_fs;

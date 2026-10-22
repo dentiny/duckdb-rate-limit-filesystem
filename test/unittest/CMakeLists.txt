@@ -2,6 +2,7 @@ include_directories(include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 include_directories(${CMAKE_SOURCE_DIR}/src/include)
 include_directories(${DuckDB_SOURCE_DIR}/third_party)
+include_directories(${DuckDB_SOURCE_DIR}/third_party/catch)
 include_directories(${DuckDB_SOURCE_DIR}/test/include)
 
 set(RATE_LIMITER_UNITTEST_OBJECTS
@@ -19,10 +20,11 @@ add_executable(unittest_rate_limiter main.cpp ${RATE_LIMITER_UNITTEST_OBJECTS})
 
 if(NOT WIN32
    AND NOT SUN
-   AND NOT ZOS)
+   AND NOT ZOS
+   AND NOT PREBUILT_BINARY)
   target_link_libraries(unittest_rate_limiter test_helpers duckdb
                         ${EXTENSION_NAME})
 else()
-  target_link_libraries(unittest_rate_limiter test_helpers duckdb_static
-                        ${EXTENSION_NAME})
+  target_link_libraries(unittest_rate_limiter test_helpers duckdb_static)
+  link_extension_libraries(unittest_rate_limiter "")
 endif()

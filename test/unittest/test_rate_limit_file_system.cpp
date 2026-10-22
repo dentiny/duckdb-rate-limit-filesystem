@@ -1,5 +1,6 @@
 #include "catch/catch.hpp"
 
+#include <string_view>
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/local_file_system.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -11,9 +12,9 @@ using namespace duckdb;
 
 namespace {
 
-constexpr const char *TEST_DIR = "/tmp/test_rate_limit_fs";
+constexpr std::string_view TEST_DIR = "/tmp/test_rate_limit_fs";
 // Wrapped filesystem name used for config lookups
-constexpr const char *TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
+constexpr std::string_view TEST_FS_NAME = "RateLimitFileSystem - LocalFileSystem";
 
 // Helper to create a temporary file with content inside the test directory
 string CreateTempFile(const string &dir, const string &filename, const string &content) {
@@ -45,7 +46,7 @@ TEST_CASE("RateLimitFileSystem - Rate limit filesystem", "[rate_limit_fs]") {
 }
 
 TEST_CASE("RateLimitFileSystem - basic operations without rate limiting", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	auto inner_fs = make_uniq<LocalFileSystem>();
@@ -83,7 +84,7 @@ TEST_CASE("RateLimitFileSystem - basic operations without rate limiting", "[rate
 }
 
 TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	auto inner_fs = make_uniq<LocalFileSystem>();
@@ -94,8 +95,8 @@ TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") 
 
 	SECTION("Read with rate limiting - blocking mode allows read") {
 		// Set rate limit: 100 bytes per second, 1000 byte burst
-		config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 100, RateLimitMode::BLOCKING);
-		config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 1000);
+		config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 100, RateLimitMode::BLOCKING);
+		config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 1000);
 
 		auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 		string buffer(100, '\0');
@@ -107,7 +108,7 @@ TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") 
 
 	SECTION("Stat operations use stat rate limit") {
 		// Set rate limit for stat: 10 ops/sec (no burst for non-byte operations)
-		config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
+		config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
 
 		// These should all work
 		REQUIRE(fs.FileExists(temp_path));
@@ -120,12 +121,12 @@ TEST_CASE("RateLimitFileSystem - with rate limiting config", "[rate_limit_fs]") 
 }
 
 TEST_CASE("RateLimitFileSystem - non-blocking mode throws on rate limit", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Very low rate limit: 1 byte per second, 10 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 1, RateLimitMode::NON_BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 10);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 1, RateLimitMode::NON_BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 10);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -151,11 +152,11 @@ TEST_CASE("RateLimitFileSystem - non-blocking mode throws on rate limit", "[rate
 }
 
 TEST_CASE("RateLimitFileSystem - list operations blocking mode", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Set rate limit for list: 100 ops/sec (no burst for non-byte operations)
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::LIST, 100, RateLimitMode::BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::LIST, 100, RateLimitMode::BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -166,12 +167,12 @@ TEST_CASE("RateLimitFileSystem - list operations blocking mode", "[rate_limit_fs
 }
 
 TEST_CASE("RateLimitFileSystem - list operations non-blocking mode", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Set rate limit for list: 1 op/sec (no burst for non-byte operations)
 	// With burst=0, effective_burst=1, tolerance=1 second allows 2 operations
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::LIST, 1, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::LIST, 1, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -187,10 +188,10 @@ TEST_CASE("RateLimitFileSystem - list operations non-blocking mode", "[rate_limi
 }
 
 TEST_CASE("RateLimitFileSystem - mkdir operations non-blocking mode", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -201,10 +202,10 @@ TEST_CASE("RateLimitFileSystem - mkdir operations non-blocking mode", "[rate_lim
 }
 
 TEST_CASE("RateLimitFileSystem - mkdir recursive non-blocking mode", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::MKDIR, 1, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -215,12 +216,12 @@ TEST_CASE("RateLimitFileSystem - mkdir recursive non-blocking mode", "[rate_limi
 }
 
 TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Set rate limit for write: 1000 bytes/sec, 10000 byte burst
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::WRITE, 1000, RateLimitMode::BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::WRITE, 10000);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::WRITE, 1000, RateLimitMode::BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::WRITE, 10000);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -237,12 +238,12 @@ TEST_CASE("RateLimitFileSystem - write operations rate limiting", "[rate_limit_f
 }
 
 TEST_CASE("RateLimitFileSystem - burst exceeds check", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// Very small burst: 5 bytes
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::READ, 100, RateLimitMode::BLOCKING);
-	config->SetBurst(TEST_FS_NAME, FileSystemOperation::READ, 5);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::READ, 100, RateLimitMode::BLOCKING);
+	config->SetBurst(string(TEST_FS_NAME), FileSystemOperation::READ, 5);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -260,11 +261,11 @@ TEST_CASE("RateLimitFileSystem - burst exceeds check", "[rate_limit_fs]") {
 }
 
 TEST_CASE("RateLimitFileSystem - per-filesystem config isolation", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 
-	// Set rate limit only for "OtherFS", not for TEST_FS_NAME
+	// Set rate limit only for "OtherFS", not for string(TEST_FS_NAME)
 	config->SetQuota("OtherFS", FileSystemOperation::READ, 1, RateLimitMode::NON_BLOCKING);
 	config->SetBurst("OtherFS", FileSystemOperation::READ, 1);
 
@@ -276,7 +277,7 @@ TEST_CASE("RateLimitFileSystem - per-filesystem config isolation", "[rate_limit_
 
 	auto handle = fs.OpenFile(temp_path, FileOpenFlags::FILE_FLAGS_READ);
 
-	// Should work without rate limiting since TEST_FS_NAME has no config
+	// Should work without rate limiting since string(TEST_FS_NAME) has no config
 	string buffer(100, '\0');
 	auto bytes_read = fs.Read(*handle, buffer.data(), static_cast<int64_t>(test_content.length()));
 	REQUIRE(bytes_read == static_cast<int64_t>(test_content.length()));
@@ -290,11 +291,11 @@ TEST_CASE("RateLimitFileSystem - per-filesystem config isolation", "[rate_limit_
 }
 
 TEST_CASE("RateLimitFileSystem - file open is rate limited as STAT", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
 	// STAT quota 1/sec, non-blocking: first open uses capacity, second immediate open throws
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 1, RateLimitMode::NON_BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::STAT, 1, RateLimitMode::NON_BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);
@@ -318,10 +319,10 @@ TEST_CASE("RateLimitFileSystem - file open is rate limited as STAT", "[rate_limi
 }
 
 TEST_CASE("RateLimitFileSystem - open file with blocking mode", "[rate_limit_fs]") {
-	ScopedDirectory test_dir(TEST_DIR);
+	ScopedDirectory test_dir {string(TEST_DIR)};
 
 	auto config = make_shared_ptr<RateLimitConfig>();
-	config->SetQuota(TEST_FS_NAME, FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
+	config->SetQuota(string(TEST_FS_NAME), FileSystemOperation::STAT, 10, RateLimitMode::BLOCKING);
 
 	auto inner_fs = make_uniq<LocalFileSystem>();
 	RateLimitFileSystem fs(std::move(inner_fs), config);

@@ -3,7 +3,7 @@
 #include <condition_variable>
 #include <cstdint>
 
-#include "mutex.hpp"
+#include "duckdb/common/mutex.hpp"
 
 namespace duckdb {
 
@@ -28,8 +28,9 @@ public:
 	int64_t GetCurrent() const;
 
 private:
-	mutable concurrency::mutex mtx;
-	std::condition_variable_any cv DUCKDB_GUARDED_BY(mtx);
+	mutable annotated_mutex mtx;
+	// Notifications are safe without mtx; only the wait predicate state is guarded.
+	std::condition_variable_any cv;
 	int64_t max_count DUCKDB_GUARDED_BY(mtx);
 	int64_t current_count DUCKDB_GUARDED_BY(mtx);
 };
