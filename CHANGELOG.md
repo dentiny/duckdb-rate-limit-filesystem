@@ -3,7 +3,7 @@
 ## Changed
 
 - Upgrade DuckDB to `v2.0.0` and extension-ci-tools to the latest commit.
-- Require C++17 or newer and use DuckDB identifiers for table function columns.
+- Use C++17 and DuckDB identifiers for table function columns.
 - Replace copied thread annotation and lock implementations with DuckDB utilities.
 - Use explicit vector append/cardinality APIs and C++17 string views and type traits.
 
