@@ -4,9 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 set(TARGET_NAME rate_limit_fs)
 project(${TARGET_NAME})
 
-if(NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 17)
-  set(CMAKE_CXX_STANDARD 17)
-endif()
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
