@@ -1,0 +1,46 @@
+# name: test/sql/wrap_filesystem_idempotent.test
+# description: filesystem wrapping is volatile and safe to repeat.
+# group: [sql]
+
+require rate_limit_fs
+
+query TI
+SELECT stability, has_side_effects FROM duckdb_functions()
+WHERE function_name = 'rate_limit_fs_wrap';
+----
+VOLATILE	true
+
+# Planning must not mutate the filesystem registry.
+statement ok
+PREPARE wrap_filesystem AS SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFsFakeFileSystem';
+----
+1
+
+query I
+EXECUTE wrap_filesystem;
+----
+true
+
+# Re-executing the same statement must reuse the existing wrapper.
+query I
+EXECUTE wrap_filesystem;
+----
+true
+
+query I
+SELECT rate_limit_fs_wrap('RateLimitFsFakeFileSystem');
+----
+true
+
+query I
+SELECT COUNT(*) FROM rate_limit_fs_list_filesystems() WHERE name = 'RateLimitFileSystem - RateLimitFsFakeFileSystem';
+----
+1
+
+statement error
+SELECT rate_limit_fs_wrap('unregistered_filesystem');
+----
+Filesystem 'unregistered_filesystem' not found or cannot be extracted.
