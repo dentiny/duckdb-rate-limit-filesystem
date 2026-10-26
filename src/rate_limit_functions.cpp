@@ -267,6 +267,12 @@ void RateLimitFsWrapFunction(DataChunk &args, ExpressionState &state, Vector &re
 		// Extract the filesystem from the VFS
 		auto extracted_fs = vfs.ExtractSubSystem(fs_str);
 		if (!extracted_fs) {
+			// Keep an existing wrapper when the original filesystem was already extracted.
+			const auto wrapped_name = StringUtil::Format("RateLimitFileSystem - %s", fs_str);
+			const auto registered = vfs.ListSubSystems();
+			if (std::find(registered.begin(), registered.end(), wrapped_name) != registered.end()) {
+				return true;
+			}
 			throw InvalidInputException("Filesystem '%s' not found or cannot be extracted. "
 			                            "Use rate_limit_fs_list_filesystems() to see available filesystems.",
 			                            fs_str);
@@ -335,8 +341,11 @@ ScalarFunction GetRateLimitFsMaxRequestsFunction() {
 }
 
 ScalarFunction GetRateLimitFsWrapFunction() {
-	return ScalarFunction("rate_limit_fs_wrap", {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR}},
-	                      LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsWrapFunction);
+	ScalarFunction function("rate_limit_fs_wrap", {/*filesystem_name=*/LogicalType {LogicalTypeId::VARCHAR}},
+	                        LogicalType {LogicalTypeId::BOOLEAN}, RateLimitFsWrapFunction);
+	// Wrapping changes the filesystem registry and must not run during constant folding.
+	function.SetVolatile();
+	return function;
 }
 
 } // namespace duckdb
