@@ -3,7 +3,7 @@
 
 # Extension from this repo
 duckdb_extension_load(rate_limit_fs SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
-                      EXTENSION_VERSION 0.1.0 LOAD_TESTS)
+                      EXTENSION_VERSION 0.1.1 LOAD_TESTS)
 duckdb_extension_statically_link(rate_limit_fs)
 
 # Any extra extensions that should be built e.g.: duckdb_extension_load(json)
